@@ -22,7 +22,18 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { DeParaVigente } from '@/types/sigef'
+import { DeParaVigente, DocumentoFiscal } from '@/types/sigef'
+import {
+  coletarParesUnicos,
+  encontrarProdutoPorCProd,
+  ParItemFornecedor,
+} from '@/services/vinculoAutomaticoService'
+import {
+  DialogoResumoVinculo,
+  DialogoPendenciasProduto,
+  ResumoVinculoAutomatico,
+  PendenciaFornecedor,
+} from './fornecedores-dialogs'
 
 /**
  * Fornecedores — emitentes ideais derivados dos documentos importados
@@ -30,7 +41,14 @@ import { DeParaVigente } from '@/types/sigef'
  * A lista é somente leitura: o cadastro fiscal real acontece no de-para.
  */
 export default function FornecedoresPage() {
-  const { documentos, deParaList, salvarDePara, excluirDePara } = useSigef()
+  const {
+    produtos,
+    documentos,
+    deParaList,
+    salvarDePara,
+    excluirDePara,
+    vincularFornecedorAutomatico,
+  } = useSigef()
 
   const [busca, setBusca] = useState('')
   const [dialogoAberto, setDialogoAberto] = useState(false)
@@ -44,6 +62,11 @@ export default function FornecedoresPage() {
     fatorConversao: '1',
     codigoInventario: '',
   })
+  // Estado do vínculo automático (um clique): execução + pendências + resumo
+  const [processando, setProcessando] = useState<string | null>(null)
+  const [pendencias, setPendencias] = useState<PendenciaFornecedor | null>(null)
+  const [resumo, setResumo] = useState<ResumoVinculoAutomatico | null>(null)
+  const [dialogoPendenciasAberto, setDialogoPendenciasAberto] = useState(false)
 
   const fornecedores = useMemo(() => {
     const mapa = new Map<
@@ -93,6 +116,51 @@ export default function FornecedoresPage() {
 
     return Array.from(mapa.values()).sort((a, b) => b.totalNotas - a.totalNotas)
   }, [documentos, deParaList])
+
+  /**
+   * Cadastro + vínculo automáticos a partir do CNPJ do emitente (um clique):
+   * grava o fornecedor com a razão social das notas, cria os vínculos de-para
+   * dos itens que JÁ existem no catálogo e lista as pendências "cadastrar
+   * produto" para os itens sem correspondência (nenhum produto é inventado).
+   */
+  const vincularAutomatico = (cnpj: string) => {
+    const fornecedor = fornecedores.find((f) => f.cnpj === cnpj)
+    const razaoSocial = fornecedor?.razaoSocial || cnpj
+    setProcessando(cnpj)
+    try {
+      const antesPendentes = documentos.filter(
+        (d) => d.cnpjEmitente.replace(/\D/g, '') === cnpj && d.status === 'AGUARDANDO_DE_PARA',
+      ).length
+      const r = vincularFornecedorAutomatico({
+        cnpjFornecedor: cnpj,
+        razaoSocialFornecedor: razaoSocial,
+      })
+      if (r.totalPares === 0) {
+        // Nada para fazer (sem itens ou tudo já vinculado) — contexto dado pelo toast
+        return
+      }
+      setResumo({
+        cnpj,
+        razaoSocial,
+        criados: r.criados,
+        pendentes: r.pendentes,
+        reenfileiradas: antesPendentes,
+        quando: new Date().toISOString(),
+      })
+      if (r.pendentes > 0) {
+        const cnpjLimpo = cnpj.replace(/\D/g, '')
+        const itens = coletarParesUnicos(documentos, cnpjLimpo).filter((par) => {
+          const produto = encontrarProdutoPorCProd(produtos, par.cProd)
+          return !produto
+        })
+        setPendencias({ cnpj, razaoSocial, itens })
+      } else {
+        setPendencias(null)
+      }
+    } finally {
+      setProcessando(null)
+    }
+  }
 
   const fornecedoresFiltrados = useMemo(
     () =>
@@ -223,6 +291,18 @@ export default function FornecedoresPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-teal-600 text-teal-700 hover:bg-teal-50 disabled:opacity-60"
+                          disabled={processando === f.cnpj}
+                          aria-label={`Cadastrar e vincular automaticamente os itens do emitente ${f.cnpj}`}
+                          onClick={() => vincularAutomatico(f.cnpj)}
+                        >
+                          {processando === f.cnpj
+                            ? 'Vinculando…'
+                            : 'Cadastrar e vincular automaticamente'}
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => abrirEdicao(f.cnpj)}>
                           {f.vinculos > 0 ? 'Editar vínculo' : 'Vincular'}
                         </Button>
@@ -352,6 +432,19 @@ export default function FornecedoresPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DialogoResumoVinculo
+        resumo={resumo}
+        onFechar={() => setResumo(null)}
+        onVerPendencias={() => {
+          setResumo(null)
+          if (pendencias) setDialogoPendenciasAberto(true)
+        }}
+      />
+      <DialogoPendenciasProduto
+        pendencias={dialogoPendenciasAberto ? pendencias : null}
+        onFechar={() => setDialogoPendenciasAberto(false)}
+      />
     </div>
   )
 }

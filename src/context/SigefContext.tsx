@@ -34,6 +34,8 @@ import { calcularItensInventario, reprocessarKardexCronologico } from '@/service
 import { parseNFeXml } from '@/services/nfeXmlParser'
 import { consultarDFeSimulado } from '@/services/sefazDfeSimulator'
 import { useAuth } from '@/context/AuthContext'
+import { REGUAS_AUDITORIA } from '@/data/regrasAuditoria'
+import { coletarParesUnicos, montarVinculosAutomaticos } from '@/services/vinculoAutomaticoService'
 import { toast } from 'sonner'
 
 interface SigefContextType {
@@ -66,6 +68,10 @@ interface SigefContextType {
   ) => { criados: number; atualizados: number; ignorados: number; sinalizados: number }
   salvarDePara: (vinculo: Omit<DeParaVigente, 'id' | 'atualizadoEm'>) => void
   excluirDePara: (id: string) => void
+  vincularFornecedorAutomatico: (params: {
+    cnpjFornecedor: string
+    razaoSocialFornecedor: string
+  }) => { criados: number; atualizados: number; pendentes: number; totalPares: number }
 
   // Ações de Importação e NF-e
   importarXmlsEmLote: (xmlStrings: string[]) => {
@@ -260,6 +266,86 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const novosDePara = store.dePara.filter((dp) => dp.id !== id)
     recalcularKardex(store.produtos, store.documentos, novosDePara)
     toast.info('Vínculo De-Para removido. Kardex recalculado.')
+  }
+
+  // Cadastro + vínculo automáticos a partir do CNPJ do emitente (tela Fornecedores):
+  // 1) registra o fornecedor gravando a razão social nas entradas do de-para;
+  // 2) varre todos os itens das notas emitidas por aquele CNPJ, agrupa os pares
+  //    únicos cProd + xProd e vincula os que JÁ existem no catálogo (fator 1,
+  //    descrição do fornecedor preenchida). Itens sem correspondência ficam
+  //    pendentes — nenhum produto é inventado;
+  // 3) reenfileira automaticamente as notas do CNPJ que estavam travadas em
+  //    AGUARDANDO_DE_PARA (recalcularKardex já faz isso ao gravar o de-para).
+  const vincularFornecedorAutomatico = (params: {
+    cnpjFornecedor: string
+    razaoSocialFornecedor: string
+  }): { criados: number; atualizados: number; pendentes: number; totalPares: number } => {
+    const cnpjLimpo = params.cnpjFornecedor.replace(/\D/g, '')
+    const razaoSocial = (params.razaoSocialFornecedor || '').trim()
+
+    // 1) Pares únicos (cProd + xProd) de todas as notas emitidas pelo CNPJ
+    const pares = coletarParesUnicos(store.documentos, cnpjLimpo)
+    if (pares.length === 0) {
+      toast.info('Nenhum item emitido por este CNPJ para vincular.')
+      return { criados: 0, atualizados: 0, pendentes: 0, totalPares: 0 }
+    }
+
+    // 2) Monta os vínculos contra o catálogo de produtos (não inventa produto)
+    const { vinculos, pendentes, totalPares } = montarVinculosAutomaticos({
+      cnpjFornecedor: cnpjLimpo,
+      razaoSocialFornecedor: razaoSocial,
+      pares,
+      produtos: store.produtos,
+      deParaAtuais: store.dePara,
+    })
+
+    // "Cadastro" do fornecedor = a razão social nas entradas do de-para dele
+    const novosDePara: DeParaVigente[] = vinculos.map((v) => ({
+      ...v,
+      id: `dp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      atualizadoEm: new Date().toISOString(),
+    }))
+    const deParaFinal = [...store.dePara, ...novosDePara]
+
+    // Ocorrência de auditoria (régua A13): cadastro/vínculo automáticos com AUTOR
+    const nomeAutor = usuarioAtual?.nome ?? usuarioAtual?.login ?? '—'
+    const ocorrencia: OcorrenciaAuditoria = {
+      id: `oco-a13-vincauto-${Date.now()}`,
+      regraCodigo: 'A13',
+      regraNome: 'Importação de planilha — itens para revisão',
+      severidade: 'INFO',
+      descricao: `Vínculo automático de fornecedor ${cnpjLimpo} (${razaoSocial}) por ${nomeAutor}: ${
+        novosDePara.length
+      } vínculo(s) criado(s), ${pendentes.length} item(ns) sem correspondência no catálogo (cadastrar produto): ${pendentes
+        .map((p) => p.cProd)
+        .join(', ')}.`,
+      baseLegal: REGUAS_AUDITORIA.find((r) => r.codigo === 'A13')?.baseLegal || '',
+      dataIdentificacao: new Date().toISOString(),
+      resolvido: false,
+      podeReprocessar: false,
+    }
+
+    // 3) Reenfileira as notas AGUARDANDO_DE_PARA daquele CNPJ com os novos vínculos
+    // (gravação única: o reprocessamento já devolve as ocorrências da régua —
+    // a ocorrência A13 do vínculo automático entra junto, sem leitura de estado obsoleto)
+    const resultado = reprocessarKardexCronologico(store.produtos, store.documentos, deParaFinal)
+    atualizarStore({
+      produtos: store.produtos,
+      documentos: resultado.documentosAtualizados,
+      dePara: deParaFinal,
+      kardex: resultado.kardex,
+      ocorrencias: [...resultado.ocorrencias, ocorrencia],
+    })
+
+    toast.success(
+      `Fornecedor ${razaoSocial} cadastrado. ${novosDePara.length} vínculo(s) criado(s), ${pendentes.length} item(ns) pendente(s) de cadastro de produto.`,
+    )
+    return {
+      criados: novosDePara.length,
+      atualizados: 0,
+      pendentes: pendentes.length,
+      totalPares,
+    }
   }
 
   // ============ Regras CFOP (entidade própria) ============
@@ -749,6 +835,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         importarProdutosPlanilha,
         salvarDePara,
         excluirDePara,
+        vincularFornecedorAutomatico,
         importarXmlsEmLote,
         cancelarNFe,
         reprocessarNotas,
