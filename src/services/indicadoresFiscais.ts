@@ -185,8 +185,18 @@ export function calcularIndicadoresFiscais(params: {
   })
 
   // ===== Fila de pendências (estado atual da fila da empresa ativa)
+  // Documentos com marca derivada de desqualificação / "não controla estoque" /
+  // "não vincular" NÃO são pendência de De-Para nem erro: a regra CNPJ + cProd
+  // já define que o item não gera vínculo/estoque — não há o que resolver.
+  // Mesmo filtro defensivo aplicado nos totais (notaValidaParaTotais).
   const pendencias: PendenciasFila = {
-    aguardandoDePara: documentos.filter((d) => d.status === 'AGUARDANDO_DE_PARA').length,
+    aguardandoDePara: documentos.filter(
+      (d) =>
+        d.status === 'AGUARDANDO_DE_PARA' &&
+        !d.desqualificadaParaInventario &&
+        !d.naoControlaEstoque &&
+        !d.naoVinculaEstoque,
+    ).length,
     erro: documentos.filter((d) => d.status === 'ERRO').length,
     duplicidade: documentos.filter((d) => d.status === 'DUPLICIDADE').length,
     total: 0,

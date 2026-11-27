@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ItemContagemInventario } from '@/types/sigef'
+import { SeletorCompetencia } from '@/components/SeletorCompetencia'
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 
@@ -54,7 +55,11 @@ export default function InventarioPage() {
   const podeAprovar = temPermissao('acao-aprovar-ajuste')
   const podeFechar = temPermissao('acao-fechar-competencia')
 
-  const [competenciaSelecionada, setCompetenciaSelecionada] = useState<string>('2025-01')
+  // A competência é a ATIVA da empresa (fonte única no SigefContext): trocá-la
+  // aqui muda o período de todas as outras abas ao mesmo tempo.
+  const { competenciaAtiva, definirCompetenciaAtiva } = useSigef()
+  const competenciaSelecionada = competenciaAtiva
+  const setCompetenciaSelecionada = definirCompetenciaAtiva
   const [responsavel, setResponsavel] = useState(usuarioAtual?.nome ?? '')
   const [itensContagem, setItensContagem] = useState<ItemContagemInventario[]>([])
   const [modalConfirmarFechamento, setModalConfirmarFechamento] = useState(false)
@@ -91,8 +96,15 @@ export default function InventarioPage() {
   }
 
   // Validações impeditivas de Fechamento
+  // Mesmo filtro defensivo do Painel/indicadoresFiscais: documentos com marca
+  // derivada de desqualificação / "não controla estoque" / "não vincular" não
+  // são pendência — bloqueariam o fechamento sem motivo real.
   const pendenciasDocumentos = documentos.filter(
-    (d) => d.status === 'PENDENTE' || d.status === 'AGUARDANDO_DE_PARA',
+    (d) =>
+      (d.status === 'PENDENTE' || d.status === 'AGUARDANDO_DE_PARA') &&
+      !d.desqualificadaParaInventario &&
+      !d.naoControlaEstoque &&
+      !d.naoVinculaEstoque,
   ).length
 
   const duplicidades = documentos.filter((d) => d.status === 'DUPLICIDADE').length
@@ -150,21 +162,7 @@ export default function InventarioPage() {
       {/* Barra de Competência e Status */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="compSelect" className="text-xs font-semibold text-slate-600">
-              Competência:
-            </Label>
-            <select
-              id="compSelect"
-              value={competenciaSelecionada}
-              onChange={(e) => setCompetenciaSelecionada(e.target.value)}
-              className="text-xs h-8 border border-slate-300 rounded-md px-2.5 font-bold bg-slate-50"
-            >
-              <option value="2025-01">Janeiro/2025 (Atual)</option>
-              <option value="2024-12">Dezembro/2024 (Encerrado)</option>
-              <option value="2024-11">Novembro/2024</option>
-            </select>
-          </div>
+          <SeletorCompetencia />
 
           <div>
             {isCompetenciaFechada ? (

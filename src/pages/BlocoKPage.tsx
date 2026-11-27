@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useSigef } from '@/context/SigefContext'
 import { PageHead, CardS, KpiB, Pill, brl, num } from '@/components/shell'
+import { SeletorCompetencia } from '@/components/SeletorCompetencia'
 import { montarBlocoC } from '@/services/spedBlocoC'
 
 /** Prévia do Bloco K (perfil atacadista) e comparação com o Bloco H. */
 export default function BlocoKPage() {
-  const { empresaAtiva, produtos, documentos, kardex, fechamentos } = useSigef()
-  const [competencia, setCompetencia] = useState(() => new Date().toISOString().slice(0, 7))
+  const { empresaAtiva, produtos, documentos, kardex, fechamentos, competenciaAtiva } = useSigef()
+  const competencia = competenciaAtiva
 
   const blocoC = useMemo(
     () =>
@@ -45,21 +46,8 @@ export default function BlocoKPage() {
         eyebrow="Bloco K — perfil atacadista"
         titulo="Bloco K"
         subtitulo="Prévia dos registros K100/K200 (produção e estoque) e conciliação com o Bloco H da competência."
+        acoes={<SeletorCompetencia />}
       />
-
-      <div className="field-row mb-4">
-        <div className="field">
-          <label htmlFor="bk-competencia">Competência (AAAA-MM)</label>
-          <input
-            id="bk-competencia"
-            className="sig-input !w-40"
-            value={competencia}
-            onChange={(e) => setCompetencia(e.target.value)}
-            placeholder="2025-01"
-          />
-          <small>Use a competência encerrada no Inventário.</small>
-        </div>
-      </div>
 
       <div className="kpi-grid">
         <KpiB
@@ -72,7 +60,7 @@ export default function BlocoKPage() {
           label="Entradas no período"
           value={brl(totalEntradas)}
           tone="verde"
-          hint={`${num(totalEntradas ? movimentosCompetencia.filter((m) => m.valorTotalEntrada > 0).length : 0, 0)} movimento(s)`}
+          hint={`${num(movimentosCompetencia.filter((m) => m.valorTotalEntrada > 0).length, 0)} movimento(s)`}
         />
         <KpiB
           label="Saídas no período"
@@ -91,16 +79,16 @@ export default function BlocoKPage() {
       <CardS
         className="mt-4"
         titulo={`K100 — período apurado ${competencia}`}
-        sub="Registro de identificação do período. Empresa: "
+        sub={`Empresa: ${empresaAtiva.razaoSocial} — CNPJ ${empresaAtiva.cnpj} / IE ${empresaAtiva.inscricaoEstadual} — UF ${empresaAtiva.uf}`}
         acoes={
           <Pill tone={fechamento ? 't-verde' : 't-ambar'}>
             {fechamento ? 'Competência fechada' : 'Competência aberta'}
           </Pill>
         }
       >
-        <p className="text-sm m-0">
-          <strong>{empresaAtiva.razaoSocial}</strong> — CNPJ {empresaAtiva.cnpj} / IE{' '}
-          {empresaAtiva.inscricaoEstadual} — UF {empresaAtiva.uf}
+        <p className="text-xs m-0 text-[var(--sig-muted)]">
+          A competência acompanha o seletor global — trocá-la aqui muda o período do Painel, do
+          Inventário e do SPED ao mesmo tempo.
         </p>
       </CardS>
 
@@ -138,17 +126,21 @@ export default function BlocoKPage() {
                 const div = itemH ? qtdK - itemH.quantidadeContada : null
                 return (
                   <tr key={p.codigoInventario}>
-                    <td className="font-mono text-xs">{p.codigoInventario}</td>
-                    <td>{p.descricao}</td>
-                    <td>{p.unidade}</td>
-                    <td className="text-right tabular-nums">{num(qtdK)}</td>
-                    <td className="text-right tabular-nums">
+                    <td className="font-mono text-xs whitespace-nowrap">{p.codigoInventario}</td>
+                    <td className="max-w-[280px] truncate" title={p.descricao}>
+                      {p.descricao}
+                    </td>
+                    <td className="whitespace-nowrap">{p.unidade}</td>
+                    <td className="text-right tabular-nums whitespace-nowrap">{num(qtdK)}</td>
+                    <td className="text-right tabular-nums whitespace-nowrap">
                       {itemH ? num(itemH.quantidadeContada) : '—'}
                       {div !== null && Math.abs(div) > 0.0001 ? (
                         <Pill tone="t-vermelho">{num(div)}</Pill>
                       ) : null}
                     </td>
-                    <td className="text-right tabular-nums">{brl(ult?.saldoValorTotal ?? 0)}</td>
+                    <td className="text-right tabular-nums whitespace-nowrap">
+                      {brl(ult?.saldoValorTotal ?? 0)}
+                    </td>
                   </tr>
                 )
               })}

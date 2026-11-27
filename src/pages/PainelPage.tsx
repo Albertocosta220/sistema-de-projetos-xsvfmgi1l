@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PainelIndicadoresFiscais } from '@/components/PainelIndicadoresFiscais'
+import { SeletorCompetencia } from '@/components/SeletorCompetencia'
 import { OnboardingPrimeiraEmpresa } from '@/components/OnboardingPrimeiraEmpresa'
 import {
   Table,
@@ -66,8 +67,16 @@ export default function PainelPage() {
   }, 0)
 
   const documentosProcessados = documentos.filter((d) => d.status === 'PROCESSADO').length
+  // Pendência de De-Para real: documentos em espera na fila EXCETO os que têm
+  // marca derivada de desqualificação / "não controla estoque" / "não vincular"
+  // — esses NÃO são pendência nem erro (regra CNPJ+cProd gravada; não há
+  // vínculo a resolver). Mesmo filtro defensivo do indicadoresFiscais.
   const documentosAguardandoDePara = documentos.filter(
-    (d) => d.status === 'AGUARDANDO_DE_PARA',
+    (d) =>
+      d.status === 'AGUARDANDO_DE_PARA' &&
+      !d.desqualificadaParaInventario &&
+      !d.naoControlaEstoque &&
+      !d.naoVinculaEstoque,
   ).length
   const documentosDuplicidade = documentos.filter((d) => d.status === 'DUPLICIDADE').length
   const saídasBloqueadas = kardex.filter((k) => k.bloqueadoSaldoNegativo).length
@@ -106,6 +115,8 @@ export default function PainelPage() {
             {periodoAtivo.inicio} a {periodoAtivo.fim}, definido na última importação
           </p>
         </div>
+
+        <SeletorCompetencia />
 
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild size="sm" className="bg-blue-700 hover:bg-blue-800">

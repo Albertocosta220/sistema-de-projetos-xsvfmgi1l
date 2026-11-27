@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSigef } from '@/context/SigefContext'
 import { PageHead, CardS, Pill, brl } from '@/components/shell'
+import { SeletorCompetencia } from '@/components/SeletorCompetencia'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -243,9 +244,12 @@ export default function FornecedoresPage() {
         titulo="Fornecedores"
         subtitulo="Emitentes ideais detectados nas NF-e importadas, com atalho para o de-para de dois campos."
         acoes={
-          <Button onClick={abrirNovo} className="bg-blue-700 hover:bg-blue-800">
-            Novo vínculo de de-para
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <SeletorCompetencia />
+            <Button onClick={abrirNovo} className="bg-blue-700 hover:bg-blue-800">
+              Novo vínculo de de-para
+            </Button>
+          </div>
         }
       />
 

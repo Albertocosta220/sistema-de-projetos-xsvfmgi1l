@@ -23,16 +23,19 @@ import {
 } from '@/components/ui/table'
 import { gerarSpedTxt } from '@/services/spedGenerator'
 import { montarBlocoC } from '@/services/spedBlocoC'
+import { SeletorCompetencia } from '@/components/SeletorCompetencia'
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 
 export default function SpedPage() {
-  const { empresaAtiva, produtos, kardex, fechamentos, documentos } = useSigef()
+  // A competência é a ATIVA da empresa (fonte única no SigefContext): trocá-la
+  // aqui muda o período de todas as outras abas ao mesmo tempo.
+  const { empresaAtiva, produtos, kardex, fechamentos, documentos, competenciaAtiva } = useSigef()
   const { temPermissao } = useAuth()
   // Gerar/fechar SPED exige a ação "Fechar competência" (encerramento fiscal)
   const podeFiscal = temPermissao('acao-fechar-competencia')
 
-  const [competencia, setCompetencia] = useState('2025-01')
+  const competencia = competenciaAtiva
 
   const fechamentoAtual = fechamentos.find((f) => f.competencia === competencia)
 
@@ -156,32 +159,21 @@ export default function SpedPage() {
 
       {/* Seletor de Competência e Status do Bloco H */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-slate-600">Período de Apuração:</span>
-          <select
-            value={competencia}
-            onChange={(e) => setCompetencia(e.target.value)}
-            className="text-xs h-8 border border-slate-300 rounded-md px-2.5 font-bold bg-slate-50"
-            aria-label="Selecionar período de apuração SPED"
-          >
-            <option value="2025-01">01/01/2025 a 31/01/2025 (2025-01)</option>
-            <option value="2024-12">01/12/2024 a 31/12/2024 (2024-12)</option>
-          </select>
-        </div>
+        <SeletorCompetencia />
 
         <div className="flex items-center gap-2 text-xs">
           <span className="text-slate-500">Status Bloco H:</span>
           {fechamentoAtual ? (
-            <Badge className="bg-emerald-600 text-white flex items-center gap-1 text-[11px]">
+            <Badge className="bg-emerald-600 text-white flex items-center gap-1 text-xs">
               <CheckCircle2 className="size-3" />
               Inventário Fechado
             </Badge>
           ) : (
             <Badge
               variant="outline"
-              className="text-amber-700 border-amber-300 bg-amber-50 text-[11px]"
+              className="text-amber-700 border-amber-300 bg-amber-50 text-xs"
             >
-              Kardex em Aberto (Valores em Tempo Real)
+              Kardex em Aberto (valores em tempo real)
             </Badge>
           )}
         </div>
@@ -208,7 +200,7 @@ export default function SpedPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <Badge className="bg-blue-800 text-white text-[10px]">BLOCO C</Badge>
+                    <Badge className="bg-blue-800 text-white text-xs">BLOCO C</Badge>
                     Notas Fiscais — Registros C100 e C170
                   </CardTitle>
                   <CardDescription className="text-xs mt-1">
@@ -264,8 +256,8 @@ export default function SpedPage() {
                               <Badge
                                 className={
                                   reg.codSit === '02'
-                                    ? 'bg-red-600 text-white text-[10px]'
-                                    : 'bg-emerald-600 text-white text-[10px]'
+                                    ? 'bg-red-600 text-white text-xs'
+                                    : 'bg-emerald-600 text-white text-xs'
                                 }
                               >
                                 {reg.codSit === '02'
@@ -358,7 +350,7 @@ export default function SpedPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <Badge className="bg-purple-700 text-white text-[10px]">BLOCO K</Badge>
+                    <Badge className="bg-purple-700 text-white text-xs">BLOCO K</Badge>
                     Controle da Produção e do Estoque — Registros K010 e K200
                   </CardTitle>
                   <CardDescription className="text-xs mt-1">
@@ -414,7 +406,7 @@ export default function SpedPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <Badge className="bg-emerald-700 text-white text-[10px]">BLOCO H</Badge>
+                    <Badge className="bg-emerald-700 text-white text-xs">BLOCO H</Badge>
                     Inventário Físico Escriturado — Registros H005 e H010
                   </CardTitle>
                   <CardDescription className="text-xs mt-1">

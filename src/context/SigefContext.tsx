@@ -897,7 +897,14 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (fechado) {
       return fechado.itensInventario
     }
-    return calcularItensInventario(store.produtos, store.kardex)
+    // Itens com par CNPJ+cProd desqualificado / "não vincular" / "não controla
+    // estoque" não fazem parte da contagem física — o produto existe no
+    // catálogo mas o estoque dele não é escriturado (Bloco H).
+    const chavesLiberadas = chavesNaoVinculaEstoque(store.regrasDesqualificacao)
+    const produtosContaveis = store.produtos.filter(
+      (p) => !chavesLiberadas.has(chaveProduto(p.cnpjFornecedorOrigem, p.codigoFornecedor)),
+    )
+    return calcularItensInventario(produtosContaveis, store.kardex)
   }
 
   const salvarAjusteContagem = (
