@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
+  Calendar,
   CheckCircle2,
   Clock,
   Coins,
@@ -29,7 +30,8 @@ import {
 } from '@/components/ui/table'
 
 export default function PainelPage() {
-  const { empresaAtiva, produtos, documentos, kardex, ocorrencias, fechamentos } = useSigef()
+  const { empresaAtiva, produtos, documentos, kardex, ocorrencias, fechamentos, periodoAtivo } =
+    useSigef()
 
   // Produção sem empresa cadastrada: onboarding da primeira empresa
   if (!empresaAtiva.id) {
@@ -95,6 +97,12 @@ export default function PainelPage() {
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             CNPJ: {empresaAtiva.cnpj} • IE: {empresaAtiva.inscricaoEstadual} • UF: {empresaAtiva.uf}{' '}
             • {empresaAtiva.razaoSocial}
+          </p>
+          <p className="text-xs text-blue-800 mt-1.5 font-medium flex items-center gap-1.5">
+            <Calendar className="size-3.5 text-blue-600" aria-hidden="true" />
+            Mês ativo de trabalho (competência):{' '}
+            <strong className="font-mono">{periodoAtivo.competencia}</strong> — período{' '}
+            {periodoAtivo.inicio} a {periodoAtivo.fim}, definido na última importação
           </p>
         </div>
 

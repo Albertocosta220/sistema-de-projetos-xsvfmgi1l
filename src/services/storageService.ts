@@ -1,5 +1,5 @@
 import { BackupHistorico, DadosEmpresaStore, Empresa } from '@/types/sigef'
-import { EMPRESA_PLACEHOLDER, criarStoreVazia } from './limpezaSeeds'
+import { EMPRESA_PLACEHOLDER, criarStoreVazia, normalizarStore } from './limpezaSeeds'
 
 const KEY_EMPRESA_ATIVA = 'sigef_empresa_ativa_id'
 const KEY_EMPRESAS_CADASTRO = 'sigef_empresas_lista'
@@ -56,7 +56,7 @@ export function carregarDadosEmpresa(empresa: Empresa | undefined): DadosEmpresa
   try {
     const raw = localStorage.getItem(chave)
     if (raw) {
-      return JSON.parse(raw)
+      return normalizarStore(JSON.parse(raw))
     }
   } catch (e) {
     console.error(`Erro ao carregar dados da empresa ${empresa.id}:`, e)
@@ -75,7 +75,46 @@ export function salvarDadosEmpresa(dados: DadosEmpresaStore): void {
     localStorage.setItem(chave, JSON.stringify(dados))
   } catch (e) {
     console.error(`Erro ao salvar dados da empresa ${dados.empresa.id}:`, e)
+    // Causa mais comum: QuotaExceededError (XMLs completos estouram os ~5 MB do
+    // localStorage). Sem este fallback, o setItem falha e os dados NUNCA ficam
+    // gravados — o usuário importa, sai do sistema e a fila "some" ao voltar.
+    // Ajuste: o XML completo não é usado por nenhuma tela (o parse já extraiu
+    // itens, emitente, valores); mantemos um recorte do XML por documento para
+    // caber na cota. Bloco 0/C usa apenas os campos estruturados do DocumentoFiscal.
+    try {
+      const enxuto: DadosEmpresaStore = {
+        ...dados,
+        documentos: dados.documentos.map((d) => ({
+          ...d,
+          xmlOriginal: recortarXmlParaStorage(d.xmlOriginal),
+        })),
+      }
+      localStorage.setItem(chave, JSON.stringify(enxuto))
+      console.warn(
+        `Cota do localStorage estourada: XMLs da empresa ${dados.empresa.id} foram compactados para manter a escrituração gravada.`,
+      )
+    } catch (e2) {
+      console.error('Falha ao gravar store compactado no localStorage:', e2)
+    }
   }
+}
+
+/** Reduz o XML original preservando a tag nfeProc/NFe essencial (corte a ~20 KB). */
+function recortarXmlParaStorage(xml: string): string {
+  if (!xml || xml.length <= 20_000) return xml
+  const assinatura = xml.indexOf('</Signature>')
+  if (assinatura > 0) {
+    const inicioProtocolo = xml.indexOf('< prot', assinatura) // tentativa; protocolo entra se couber
+    const fimNFe = xml.indexOf('</NFe>', assinatura)
+    const corte =
+      inicioProtocolo > 0
+        ? Math.max(inicioProtocolo, assinatura + '</Signature>'.length)
+        : assinatura + '</Signature>'.length
+    if (fimNFe > corte) {
+      return `${xml.slice(0, corte)}<!--XML_COMPACTADO_QUOTA-->${xml.slice(fimNFe)}`
+    }
+  }
+  return `${xml.slice(0, 20_000)}<!--XML_COMPACTADO_QUOTA-->`
 }
 
 export function carregarHistoricoBackups(): BackupHistorico[] {

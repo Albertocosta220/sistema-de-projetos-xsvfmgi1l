@@ -44,10 +44,15 @@ import { DocumentoFiscal } from '@/types/sigef'
 import { useAuth } from '@/context/AuthContext'
 
 export default function ImportarPage() {
-  const { documentos, importarXmlsEmLote, cancelarNFe, reprocessarNotas } = useSigef()
+  const { documentos, importarXmlsEmLote, cancelarNFe, reprocessarNotas, periodoAtivo } = useSigef()
   const { temPermissao } = useAuth()
   const podeProcessar = temPermissao('acao-processar-notas')
 
+  // Período da importação (bug 2): o que o usuário informar aqui fica gravado
+  // na competência ativa da empresa e passa a valer para Painel, Kardex,
+  // Inventário e Bloco K.
+  const [periodoInicio, setPeriodoInicio] = useState('')
+  const [periodoFim, setPeriodoFim] = useState('')
   const [textoXmlColado, setTextoXmlColado] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<string>('TODOS')
@@ -84,7 +89,10 @@ export default function ImportarPage() {
     }
 
     Promise.all(xmlPromises).then((xmlStrings) => {
-      const res = importarXmlsEmLote(xmlStrings)
+      const res = importarXmlsEmLote(xmlStrings, {
+        inicio: periodoInicio,
+        fim: periodoFim,
+      })
       toast.success(
         `Processamento finalizado: ${res.importados} importado(s), ${res.duplicados} em duplicidade (A01), ${res.pendentesDePara} aguardando de-para (A02).`,
       )
@@ -96,7 +104,7 @@ export default function ImportarPage() {
       toast.error('Cole o conteúdo XML da NF-e para importar.')
       return
     }
-    const res = importarXmlsEmLote([textoXmlColado])
+    const res = importarXmlsEmLote([textoXmlColado], { inicio: periodoInicio, fim: periodoFim })
     setTextoXmlColado('')
     toast.success(
       `XML importado! Processados: ${res.importados}, Aguardando De-Para: ${res.pendentesDePara}, Duplicados: ${res.duplicados}`,
@@ -220,6 +228,40 @@ export default function ImportarPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Período da importação — definido uma vez e usado por toda importação da tela */}
+            <div className="p-3 bg-blue-50/50 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="periodoInicio" className="text-xs font-semibold text-slate-700">
+                  Período da importação — início
+                </Label>
+                <Input
+                  id="periodoInicio"
+                  type="date"
+                  value={periodoInicio}
+                  onChange={(e) => setPeriodoInicio(e.target.value)}
+                  className="text-xs h-8 bg-white"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="periodoFim" className="text-xs font-semibold text-slate-700">
+                  Período da importação — fim
+                </Label>
+                <Input
+                  id="periodoFim"
+                  type="date"
+                  value={periodoFim}
+                  onChange={(e) => setPeriodoFim(e.target.value)}
+                  className="text-xs h-8 bg-white"
+                />
+              </div>
+              <div className="text-[11px] text-slate-600 pb-0.5">
+                Competência ativa:{' '}
+                <strong className="font-mono text-blue-800">{periodoAtivo.competencia}</strong> (
+                {periodoAtivo.inicio} a {periodoAtivo.fim}) — vale para o Painel, Kardex, Inventário
+                e Bloco K.
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Botão Upload em Lote */}
               <div

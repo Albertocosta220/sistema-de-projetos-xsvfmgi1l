@@ -225,4 +225,6 @@ export interface DadosEmpresaStore {
   ocorrencias: OcorrenciaAuditoria[]
   consultasDFe: ConsultaDFeSefaz[]
   ultimoNSU: number
+  /** Competência ativa (YYYY-MM) definida pela última importação — persistida por empresa. */
+  competenciaAtiva?: string
 }

@@ -29,7 +29,11 @@ import {
   salvarEmpresasCadastradas,
   salvarIdEmpresaAtiva,
 } from '@/services/storageService'
-import { EMPRESA_PLACEHOLDER, limparDadosSeedsOneShot } from '@/services/limpezaSeeds'
+import {
+  EMPRESA_PLACEHOLDER,
+  limparDadosSeedsOneShot,
+  normalizarStore,
+} from '@/services/limpezaSeeds'
 import { calcularItensInventario, reprocessarKardexCronologico } from '@/services/kardexEngine'
 import { parseNFeXml } from '@/services/nfeXmlParser'
 import { consultarDFeSimulado } from '@/services/sefazDfeSimulator'
@@ -75,13 +79,21 @@ interface SigefContextType {
   }) => { criados: number; atualizados: number; pendentes: number; totalPares: number }
 
   // Ações de Importação e NF-e
-  importarXmlsEmLote: (xmlStrings: string[]) => {
+  importarXmlsEmLote: (
+    xmlStrings: string[],
+    periodo?: { inicio: string; fim: string },
+  ) => {
     importados: number
     duplicados: number
     pendentesDePara: number
   }
   cancelarNFe: (docId: string, justificativa: string) => void
   reprocessarNotas: () => void
+
+  // Competência ativa (período da última importação — persistido por empresa)
+  competenciaAtiva: string
+  periodoAtivo: { competencia: string; inicio: string; fim: string }
+  definirCompetenciaAtiva: (competencia: string) => void
 
   // Ações de Inventário e Fechamento
   gerarContagemCompetencia: (competencia: string) => ItemContagemInventario[]
@@ -118,6 +130,29 @@ interface SigefContextType {
 }
 
 const SigefContext = createContext<SigefContextType | null>(null)
+
+/** Competência (YYYY-MM) do mês corrente — fallback quando nenhuma importação definiu período. */
+function mesAtual(): string {
+  const agora = new Date()
+  return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * Competência a gravar numa importação: a indicada pelo usuário na tela
+ * (data inicial do período) ou, na falta, a da nota mais nova importada —
+ * assim o período fica gravado mesmo quando a tela não envia o campo.
+ */
+function competenciaDoPeriodo(
+  periodo: { inicio: string; fim: string } | undefined,
+  documentos: DocumentoFiscal[],
+): string | undefined {
+  if (periodo?.inicio) return periodo.inicio.slice(0, 7)
+  const datas = documentos
+    .map((d) => d.dataEmissao?.slice(0, 10) || '')
+    .filter(Boolean)
+    .sort()
+  return datas.length ? datas[datas.length - 1].slice(0, 7) : undefined
+}
 
 // Produção: remove uma única vez os dados de exemplo da v0.x antes de qualquer leitura
 limparDadosSeedsOneShot()
@@ -170,15 +205,34 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Salva store sempre que atualizar
   const atualizarStore = (novosDados: Partial<DadosEmpresaStore>) => {
     setStore((prev) => {
-      const atualizado: DadosEmpresaStore = {
-        ...prev,
-        ...novosDados,
-      }
+      const atualizado: DadosEmpresaStore = normalizarStore({ ...prev, ...novosDados })
       // Sem empresa real cadastrada, nada é gravado (placeholder nunca persiste)
       if (empresaAtiva.id) salvarDadosEmpresa(atualizado)
       return atualizado
     })
   }
+
+  // ============ Competência ativa (período da importação) ============
+
+  /**
+   * Competência ativa (YYYY-MM): definida pela última importação (período
+   * informado na tela Importar), persistida na store da empresa e usada pelo
+   * Painel (mês ativo), Kardex, Inventário e Bloco K como competência corrente.
+   */
+  const definirCompetenciaAtiva = (competencia: string) => {
+    atualizarStore({ competenciaAtiva: competencia })
+  }
+
+  const competenciaAtiva = store.competenciaAtiva || mesAtual()
+  const periodoAtivo = useMemo(() => {
+    const [ano, mes] = competenciaAtiva.split('-')
+    const ultimoDia = new Date(Number(ano), Number(mes), 0).getDate()
+    return {
+      competencia: competenciaAtiva,
+      inicio: `${competenciaAtiva}-01`,
+      fim: `${competenciaAtiva}-${String(ultimoDia).padStart(2, '0')}`,
+    }
+  }, [competenciaAtiva])
 
   const trocarEmpresaAtiva = (empresaId: string) => {
     salvarIdEmpresaAtiva(empresaId)
@@ -382,8 +436,10 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     })
   }
 
-  // Importar XMLs em lote (colados ou pastas)
-  const importarXmlsEmLote = (xmlStrings: string[]) => {
+  // Importar XMLs em lote (colados ou pastas). O período informado na tela
+  // (ex.: 01/11/2026 a 30/11/2026) define a competência ativa — persistida na
+  // store e exibida no Painel (mês ativo), Kardex, Inventário e Bloco K.
+  const importarXmlsEmLote = (xmlStrings: string[], periodo?: { inicio: string; fim: string }) => {
     let importados = 0
     let duplicados = 0
     let pendentesDePara = 0
@@ -395,8 +451,17 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       novosDocs.push(doc)
     })
 
+    // Re-parseia documentos anteriores cujo XML foi compactado pela cota do
+    // localStorage (marcador XML_COMPACTADO_QUOTA): o corte preserva tudo que
+    // o parse usa, então o documento volta ao estado completo sem perder nada.
+    const docsRestaurados = store.documentos.map((d) =>
+      d.xmlOriginal.includes('XML_COMPACTADO_QUOTA')
+        ? { ...d, ...parseNFeXml(d.xmlOriginal, empresaAtiva.cnpj), id: d.id }
+        : d,
+    )
+
     // Combina com documentos existentes
-    const todosDocumentos = [...store.documentos, ...novosDocs]
+    const todosDocumentos = [...docsRestaurados, ...novosDocs]
 
     const resultado = reprocessarKardexCronologico(store.produtos, todosDocumentos, store.dePara)
 
@@ -412,6 +477,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       documentos: resultado.documentosAtualizados,
       kardex: resultado.kardex,
       ocorrencias: resultado.ocorrencias,
+      competenciaAtiva: competenciaDoPeriodo(periodo, resultado.documentosAtualizados),
     })
 
     return { importados, duplicados, pendentesDePara }
@@ -856,6 +922,9 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ocorrencias: store.ocorrencias,
         consultasDFe: store.consultasDFe,
         ultimoNSU: store.ultimoNSU,
+        competenciaAtiva,
+        periodoAtivo,
+        definirCompetenciaAtiva,
         cadastrarProduto,
         editarProduto,
         excluirProduto,

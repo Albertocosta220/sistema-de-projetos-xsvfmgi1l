@@ -139,5 +139,29 @@ export function criarStoreVazia(empresa: Empresa): DadosEmpresaStore {
     ocorrencias: [],
     consultasDFe: [],
     ultimoNSU: 0,
+    competenciaAtiva: undefined,
+  }
+}
+
+/**
+ * Normaliza uma store carregada do localStorage: garante que todo campo
+ * exista (stores antigas podem ter sido salvas sem os campos novos, como
+ * competenciaAtiva). Sem isto, telas lidas de array undefined quebram.
+ */
+export function normalizarStore(dados: DadosEmpresaStore): DadosEmpresaStore {
+  const vazia = criarStoreVazia(dados?.empresa ?? EMPRESA_PLACEHOLDER)
+  return {
+    ...vazia,
+    ...dados,
+    empresa: dados?.empresa ?? vazia.empresa,
+    produtos: Array.isArray(dados?.produtos) ? dados.produtos : [],
+    dePara: Array.isArray(dados?.dePara) ? dados.dePara : [],
+    documentos: Array.isArray(dados?.documentos) ? dados.documentos : [],
+    kardex: Array.isArray(dados?.kardex) ? dados.kardex : [],
+    fechamentos: Array.isArray(dados?.fechamentos) ? dados.fechamentos : [],
+    ocorrencias: Array.isArray(dados?.ocorrencias) ? dados.ocorrencias : [],
+    consultasDFe: Array.isArray(dados?.consultasDFe) ? dados.consultasDFe : [],
+    ultimoNSU: typeof dados?.ultimoNSU === 'number' ? dados.ultimoNSU : 0,
+    competenciaAtiva: dados?.competenciaAtiva || undefined,
   }
 }

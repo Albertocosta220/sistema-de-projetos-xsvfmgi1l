@@ -82,7 +82,6 @@ const ROTAS: { path: string; element: ReactNode }[] = [
   { path: '/fornecedores', element: <FornecedoresPage /> },
   { path: '/regras-cfop', element: <RegrasCfopPage /> },
   { path: '/empresas', element: <EmpresasSefazPage /> },
-  { path: '/sefaz', element: <EmpresasSefazPage /> },
   { path: '/auditoria', element: <AuditoriaPage /> },
   { path: '/reforma', element: <ReformaTributariaPage /> },
   { path: '/assistente', element: <AssistenteIaPage /> },

@@ -53,8 +53,7 @@ const GRUPOS: NavGroup[] = [
     itens: [
       { to: '/fornecedores', label: 'Fornecedores', icon: Store },
       { to: '/regras-cfop', label: 'Regras CFOP', icon: Gavel },
-      { to: '/empresas', label: 'Empresas', icon: Building2 },
-      { to: '/sefaz', label: 'SEFAZ por Estado', icon: Globe },
+      { to: '/empresas', label: 'Empresas & Consulta DF-e SEFAZ', icon: Building2 },
       { to: '/auditoria', label: 'Auditoria', icon: ShieldCheck },
       { to: '/reforma', label: 'Reforma Tributária', icon: FileText },
       { to: '/assistente', label: 'Assistente IA', icon: Bot },
