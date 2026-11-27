@@ -23,10 +23,14 @@ import {
 } from '@/components/ui/table'
 import { gerarSpedTxt } from '@/services/spedGenerator'
 import { montarBlocoC } from '@/services/spedBlocoC'
+import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 
 export default function SpedPage() {
   const { empresaAtiva, produtos, kardex, fechamentos, documentos } = useSigef()
+  const { temPermissao } = useAuth()
+  // Gerar/fechar SPED exige a ação "Fechar competência" (encerramento fiscal)
+  const podeFiscal = temPermissao('acao-fechar-competencia')
 
   const [competencia, setCompetencia] = useState('2025-01')
 
@@ -119,24 +123,34 @@ export default function SpedPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            onClick={copiarTxtParaClipboard}
-            variant="outline"
-            size="sm"
-            className="text-xs flex items-center gap-1.5"
-          >
-            <Copy className="size-3.5" />
-            <span>Copiar TXT</span>
-          </Button>
+          {podeFiscal && (
+            <>
+              <Button
+                onClick={copiarTxtParaClipboard}
+                variant="outline"
+                size="sm"
+                className="text-xs flex items-center gap-1.5"
+              >
+                <Copy className="size-3.5" />
+                <span>Copiar TXT</span>
+              </Button>
 
-          <Button
-            onClick={baixarArquivoSped}
-            size="sm"
-            className="bg-blue-700 hover:bg-blue-800 text-xs font-semibold flex items-center gap-1.5"
-          >
-            <Download className="size-4" />
-            <span>Baixar Arquivo SPED (.TXT)</span>
-          </Button>
+              <Button
+                onClick={baixarArquivoSped}
+                size="sm"
+                className="bg-[#0E7C86] hover:bg-[#0B636B] text-white text-xs font-semibold flex items-center gap-1.5"
+              >
+                <Download className="size-4" />
+                <span>Baixar Arquivo SPED (.TXT)</span>
+              </Button>
+            </>
+          )}
+          {!podeFiscal && (
+            <span className="text-[11px] text-[var(--sig-muted)] max-w-[260px] text-right">
+              Geração do SPED exige as ações "Fechar competência" e "Gerar SPED" no seu perfil de
+              acesso.
+            </span>
+          )}
         </div>
       </div>
 
@@ -494,7 +508,13 @@ export default function SpedPage() {
                 <Button
                   size="sm"
                   onClick={baixarArquivoSped}
-                  className="bg-blue-700 hover:bg-blue-800 text-xs"
+                  disabled={!podeFiscal}
+                  title={
+                    podeFiscal
+                      ? undefined
+                      : 'Sem permissão: exige as ações "Fechar competência" e "Gerar SPED" no perfil'
+                  }
+                  className="bg-[#0E7C86] hover:bg-[#0B636B] text-white text-xs"
                 >
                   <Download className="size-3.5 mr-1" />
                   Baixar TXT

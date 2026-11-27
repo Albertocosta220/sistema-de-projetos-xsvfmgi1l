@@ -27,6 +27,7 @@ import { UserPlus, Pencil, KeyRound, Power, ShieldCheck, Search } from 'lucide-r
 import { TELAS, ACOES, TELA_POR_ROTA } from '@/types/usuario'
 import { useLocation } from 'react-router-dom'
 import type { Usuario } from '@/types/usuario'
+import { DialogoUsuario, DialogoSenha } from './usuarios-dialogs'
 
 export default function UsuariosPage() {
   const {
@@ -55,7 +56,7 @@ export default function UsuariosPage() {
     <div>
       <PageHead
         eyebrow="Sistema"
-        title="Usuários"
+        titulo="Usuários"
         subtitulo="Cadastre e gerencie os usuários que acessam o sistema e seus perfis de permissão."
       />
 
@@ -129,6 +130,7 @@ export default function UsuariosPage() {
                           size="sm"
                           className="h-8 gap-1.5"
                           onClick={() => setDialogoEditar(u)}
+                          aria-label={`Editar usuário ${u.nome}`}
                         >
                           <Pencil className="size-3.5" />
                           Editar
@@ -138,6 +140,7 @@ export default function UsuariosPage() {
                           size="sm"
                           className="h-8 gap-1.5"
                           onClick={() => setDialogoSenha(u)}
+                          aria-label={`Redefinir senha de ${u.nome}`}
                         >
                           <KeyRound className="size-3.5" />
                           Senha
@@ -182,7 +185,6 @@ export default function UsuariosPage() {
           }
         }}
         usuario={dialogoEditar}
-        perfis={perfis}
         onSave={(dados) => {
           if (dialogoEditar) {
             const res = editarUsuario(dialogoEditar.id, {

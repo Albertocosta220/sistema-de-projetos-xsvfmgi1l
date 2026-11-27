@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dialog'
 import { REGUAS_AUDITORIA } from '@/data/regrasAuditoria'
 import { OcorrenciaAuditoria } from '@/types/sigef'
+import { dataHoraBR } from '@/components/shell'
 import { toast } from 'sonner'
 
 export default function AuditoriaPage() {
@@ -301,12 +302,22 @@ export default function AuditoriaPage() {
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {oco.resolvido ? (
-                          <Badge
-                            variant="outline"
-                            className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]"
-                          >
-                            RESOLVIDA
-                          </Badge>
+                          <div className="flex flex-col items-start gap-0.5">
+                            <Badge
+                              variant="outline"
+                              className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]"
+                            >
+                              RESOLVIDA
+                            </Badge>
+                            {oco.resolvidoPor && (
+                              <span
+                                className="text-[10px] text-slate-500 font-medium"
+                                title={oco.resolvidoEm ? dataHoraBR(oco.resolvidoEm) : undefined}
+                              >
+                                por {oco.resolvidoPor}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <Badge
                             variant="outline"

@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ItemContagemInventario } from '@/types/sigef'
+import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 
 export default function InventarioPage() {
@@ -48,9 +49,12 @@ export default function InventarioPage() {
     gerarContagemCompetencia,
     fecharCompetencia,
   } = useSigef()
+  const { temPermissao, usuarioAtual } = useAuth()
+  const podeAprovar = temPermissao('acao-aprovar-ajuste')
+  const podeFechar = temPermissao('acao-fechar-competencia')
 
   const [competenciaSelecionada, setCompetenciaSelecionada] = useState<string>('2025-01')
-  const [responsavel, setResponsavel] = useState('Auditor Fiscal - Carlos Eduardo')
+  const [responsavel, setResponsavel] = useState(usuarioAtual?.nome ?? '')
   const [itensContagem, setItensContagem] = useState<ItemContagemInventario[]>([])
   const [modalConfirmarFechamento, setModalConfirmarFechamento] = useState(false)
 
@@ -181,7 +185,13 @@ export default function InventarioPage() {
           {!isCompetenciaFechada ? (
             <Button
               onClick={() => setModalConfirmarFechamento(true)}
-              className="bg-blue-700 hover:bg-blue-800 text-xs font-semibold"
+              disabled={!podeFechar}
+              title={
+                podeFechar
+                  ? 'Validar réguas e encerrar a competência (Bloco H)'
+                  : 'Sem permissão: exige a ação "Fechar competência" no perfil'
+              }
+              className="bg-[#0E7C86] hover:bg-[#0B636B] text-white text-xs font-semibold"
             >
               <Lock className="size-3.5 mr-1.5" />
               Validar & Fechar Bloco H
@@ -361,7 +371,12 @@ export default function InventarioPage() {
                         <Input
                           type="number"
                           step="0.001"
-                          disabled={isCompetenciaFechada}
+                          disabled={isCompetenciaFechada || !podeAprovar}
+                          title={
+                            podeAprovar
+                              ? undefined
+                              : 'Sem permissão: exige a ação "Aprovar ajuste de inventário" no perfil'
+                          }
                           value={it.quantidadeContada}
                           onChange={(e) =>
                             atualizarQtdContada(
@@ -484,9 +499,9 @@ export default function InventarioPage() {
               Cancelar
             </Button>
             <Button
-              disabled={temBloqueio}
+              disabled={temBloqueio || !podeFechar}
               onClick={handleExecutarFechamento}
-              className="bg-blue-700 hover:bg-blue-800"
+              className="bg-[#0E7C86] hover:bg-[#0B636B] text-white"
             >
               Homologar e Fechar Bloco H
             </Button>

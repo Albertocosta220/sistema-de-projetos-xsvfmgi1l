@@ -107,7 +107,11 @@ function OnboardingAdmin({
           </div>
         </div>
         {erro && <p className="text-xs text-rose-700">{erro}</p>}
-        <Button type="submit" className="bg-blue-700 hover:bg-blue-800 w-full" disabled={salvando}>
+        <Button
+          type="submit"
+          className="bg-[#0E7C86] hover:bg-[#0B636B] text-white w-full"
+          disabled={salvando}
+        >
           Cadastrar administrador e entrar
         </Button>
         <p className="text-[11px] text-slate-500 m-0">
@@ -197,7 +201,11 @@ function FormLogin({
             {erro}
           </p>
         )}
-        <Button type="submit" className="bg-blue-700 hover:bg-blue-800 w-full" disabled={entrando}>
+        <Button
+          type="submit"
+          className="bg-[#0E7C86] hover:bg-[#0B636B] text-white w-full"
+          disabled={entrando}
+        >
           <LogIn className="size-4 mr-1" />
           {entrando ? 'Entrando…' : 'Entrar'}
         </Button>

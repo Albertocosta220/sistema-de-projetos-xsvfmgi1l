@@ -528,19 +528,20 @@ main button.shadow-xs {
   border-color: var(--accent);
 }
 
-/* ---- Login ---- */
+/* ---- Login (tema #0E7C86) ---- */
 .login-bg {
   background:
-    radial-gradient(1100px 500px at 85% -10%, rgba(14, 124, 134, 0.14), transparent 60%),
-    radial-gradient(900px 460px at -10% 110%, rgba(18, 59, 87, 0.18), transparent 55%),
-    var(--sig-bg);
+    radial-gradient(1100px 520px at 85% -10%, rgba(14, 124, 134, 0.35), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(10, 95, 103, 0.5), transparent 55%),
+    linear-gradient(160deg, #0b5f67 0%, #0e7c86 45%, #123b57 100%);
+  color: #ffffff;
 }
 .login-card {
-  background: var(--sig-surface);
-  border: 1px solid var(--sig-border);
-  border-radius: 14px;
-  box-shadow: 0 8px 30px rgba(18, 59, 87, 0.14);
-  padding: 26px 24px;
+  background: var(--sig-surface, #ffffff);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  box-shadow: 0 18px 45px rgba(6, 40, 48, 0.35);
+  padding: 28px 26px;
 }
 
 /* ---- Código / SPED ---- */

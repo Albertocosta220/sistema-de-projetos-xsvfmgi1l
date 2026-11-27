@@ -33,6 +33,7 @@ import { EMPRESA_PLACEHOLDER, limparDadosSeedsOneShot } from '@/services/limpeza
 import { calcularItensInventario, reprocessarKardexCronologico } from '@/services/kardexEngine'
 import { parseNFeXml } from '@/services/nfeXmlParser'
 import { consultarDFeSimulado } from '@/services/sefazDfeSimulator'
+import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 
 interface SigefContextType {
@@ -470,7 +471,8 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { sucesso: true, mensagem: `Competência ${competencia} encerrada com sucesso.` }
   }
 
-  // Auditoria
+  // Auditoria — usa o usuário logado para gravar resolvidoPor (AuthProvider envolve o SigefProvider)
+  const { usuarioAtual } = useAuth()
   const reprocessarOcorrencia = (_ocorrenciaId: string) => {
     recalcularKardex(store.produtos, store.documentos, store.dePara)
     toast.success('Régua reprocessada e verificada contra os registros atuais.')

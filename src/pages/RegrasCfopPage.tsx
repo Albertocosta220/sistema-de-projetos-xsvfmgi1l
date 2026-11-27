@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useSigef } from '@/context/SigefContext'
+import { useAuth } from '@/context/AuthContext'
 import { PageHead, CardS, Pill } from '@/components/shell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -76,6 +77,8 @@ const padraoRegra = (): FormRegra => ({
 
 export default function RegrasCfopPage() {
   const { regrasCfop, salvarRegraCfop, excluirRegraCfop } = useSigef()
+  const { temPermissao } = useAuth()
+  const podeExcluir = temPermissao('acao-excluir-registros')
 
   const [dialogo, setDialogo] = useState(false)
   const [form, setForm] = useState<FormRegra>(padraoRegra())
@@ -132,7 +135,7 @@ export default function RegrasCfopPage() {
         titulo="Regras CFOP"
         subtitulo="Define se cada natureza de movimento entra no Bloco K e qual o tratamento fiscal."
         acoes={
-          <Button className="bg-blue-700 hover:bg-blue-800" onClick={abrirNova}>
+          <Button className="bg-[#0E7C86] hover:bg-[#0B636B] text-white" onClick={abrirNova}>
             Nova regra
           </Button>
         }
@@ -194,6 +197,12 @@ export default function RegrasCfopPage() {
                             excluirRegraCfop(r.id)
                             toast.success('Regra removida.')
                           }}
+                          disabled={!podeExcluir}
+                          title={
+                            podeExcluir
+                              ? 'Remover regra CFOP'
+                              : 'Sem permissão: exige a ação "Excluir registros" no perfil'
+                          }
                         >
                           Remover
                         </Button>

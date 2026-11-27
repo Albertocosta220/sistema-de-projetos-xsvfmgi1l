@@ -41,9 +41,12 @@ import {
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { DocumentoFiscal } from '@/types/sigef'
+import { useAuth } from '@/context/AuthContext'
 
 export default function ImportarPage() {
   const { documentos, importarXmlsEmLote, cancelarNFe, reprocessarNotas } = useSigef()
+  const { temPermissao } = useAuth()
+  const podeProcessar = temPermissao('acao-processar-notas')
 
   const [textoXmlColado, setTextoXmlColado] = useState('')
   const [busca, setBusca] = useState('')
@@ -188,6 +191,12 @@ export default function ImportarPage() {
             variant="outline"
             size="sm"
             onClick={reprocessarNotas}
+            disabled={!podeProcessar}
+            title={
+              podeProcessar
+                ? 'Reprocessar a fila cronológica de documentos'
+                : 'Sem permissão: exige a ação "Processar notas" no perfil'
+            }
             className="flex items-center gap-1.5"
           >
             <RefreshCw className="size-3.5" />
@@ -289,14 +298,16 @@ export default function ImportarPage() {
               placeholder="Cole o código XML da NF-e aqui..."
               className="text-[11px] font-mono h-32 resize-none"
             />
-            <Button
-              type="button"
-              onClick={handleImportarTextoColado}
-              size="sm"
-              className="w-full bg-slate-900 hover:bg-slate-800 text-xs"
-            >
-              Processar XML Colado
-            </Button>
+            {podeProcessar && (
+              <Button
+                type="button"
+                onClick={handleImportarTextoColado}
+                size="sm"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-xs"
+              >
+                Processar XML Colado
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -451,7 +462,7 @@ export default function ImportarPage() {
                               Ver Detalhes
                             </Button>
 
-                            {doc.status !== 'CANCELADO' && (
+                            {doc.status !== 'CANCELADO' && podeProcessar && (
                               <Button
                                 variant="ghost"
                                 size="sm"

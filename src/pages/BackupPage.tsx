@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useSigef } from '@/context/SigefContext'
 import { PageHead, CardS, Pill, dataHoraBR } from '@/components/shell'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/context/AuthContext'
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,8 @@ export default function BackupPage() {
     importarBackupJson,
     restaurarBackupHistorico,
   } = useSigef()
+  const { temPermissao } = useAuth()
+  const podeBackup = temPermissao('acao-backup-restaurar')
 
   const inputRef = useRef<HTMLInputElement>(null)
   const [previa, setPrevia] = useState<{ nome: string; conteudo: string } | null>(null)
@@ -63,16 +66,30 @@ export default function BackupPage() {
         sub="O backup é um arquivo JSON com toda a base local da empresa ativa."
       >
         <div className="flex flex-wrap gap-2">
-          <Button className="bg-blue-700 hover:bg-blue-800" onClick={exportarBackupJson}>
+          <Button
+            className="bg-[#0E7C86] hover:bg-[#0B636B] text-white"
+            onClick={exportarBackupJson}
+            disabled={!podeBackup}
+            title={
+              podeBackup
+                ? undefined
+                : 'Sem permissão: exige a ação "Backup e restauração" no perfil'
+            }
+          >
             Exportar backup JSON
           </Button>
-          <Button variant="outline" onClick={() => inputRef.current?.click()}>
+          <Button
+            variant="outline"
+            onClick={() => inputRef.current?.click()}
+            disabled={!podeBackup}
+          >
             Importar backup
           </Button>
           <Button
             variant="outline"
             className="text-rose-700 border-rose-200 hover:bg-rose-50"
             onClick={() => setConfirmarRestauracao(true)}
+            disabled={!podeBackup}
           >
             Restaurar backup anterior
           </Button>
@@ -130,6 +147,7 @@ export default function BackupPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => restaurarBackupHistorico(b.versao)}
+                        disabled={!podeBackup}
                       >
                         Restaurar
                       </Button>
@@ -155,7 +173,11 @@ export default function BackupPage() {
             <Button variant="outline" onClick={() => setPrevia(null)}>
               Cancelar
             </Button>
-            <Button className="bg-blue-700 hover:bg-blue-800" onClick={aplicarPrevia}>
+            <Button
+              className="bg-[#0E7C86] hover:bg-[#0B636B] text-white"
+              onClick={aplicarPrevia}
+              disabled={!podeBackup}
+            >
               Aplicar backup
             </Button>
           </DialogFooter>

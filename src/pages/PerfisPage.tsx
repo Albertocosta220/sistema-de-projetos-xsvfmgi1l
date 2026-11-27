@@ -82,7 +82,7 @@ export default function PerfisPage() {
     <div>
       <PageHead
         eyebrow="Sistema"
-        title="Perfis de acesso"
+        titulo="Perfis de acesso"
         subtitulo="Defina quais telas e ações cada perfil pode usar. O perfil Administrador sempre tem acesso total."
       />
 

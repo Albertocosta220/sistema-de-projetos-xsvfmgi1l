@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useSigef } from '@/context/SigefContext'
+import { useAuth } from '@/context/AuthContext'
 import {
   AlertTriangle,
   ArrowRight,
@@ -56,6 +57,8 @@ export default function ProdutosPage() {
     salvarDePara,
     excluirDePara,
   } = useSigef()
+  const { temPermissao } = useAuth()
+  const podeExcluir = temPermissao('acao-excluir-registros')
 
   const deParaList = deParaListBruta.filter(naoEhRegraCfop)
 
@@ -421,6 +424,13 @@ export default function ProdutosPage() {
                               size="sm"
                               className="h-7 text-xs text-rose-600 hover:bg-rose-50"
                               onClick={() => excluirProduto(p.codigoInventario)}
+                              disabled={!podeExcluir}
+                              aria-label={`Excluir produto ${p.descricao}`}
+                              title={
+                                podeExcluir
+                                  ? 'Excluir produto'
+                                  : 'Sem permissão: exige a ação "Excluir registros" no perfil'
+                              }
                             >
                               <Trash2 className="size-3.5" />
                             </Button>
@@ -489,6 +499,13 @@ export default function ProdutosPage() {
                             size="sm"
                             className="h-7 text-xs text-rose-600 hover:bg-rose-50"
                             onClick={() => excluirDePara(dp.id)}
+                            disabled={!podeExcluir}
+                            aria-label={`Excluir de-para ${dp.cProd}`}
+                            title={
+                              podeExcluir
+                                ? 'Excluir relação de-para'
+                                : 'Sem permissão: exige a ação "Excluir registros" no perfil'
+                            }
                           >
                             <Trash2 className="size-3.5" />
                           </Button>

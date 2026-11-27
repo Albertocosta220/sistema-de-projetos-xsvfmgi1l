@@ -36,9 +36,9 @@ import { TELA_POR_ROTA } from '@/types/usuario'
  * do usuário logado. Sem permissão mostra bloqueio (não crash).
  */
 function RotaProtegida({ tela, children }: { tela: string; children: ReactNode }) {
-  const { usuarioAtual, perfis, carregando } = useAuth()
+  const { usuarioAtual, perfis, pronto } = useAuth()
 
-  if (carregando) return null
+  if (!pronto) return null
 
   if (!usuarioAtual) return <Navigate to="/login" replace />
 
@@ -46,9 +46,9 @@ function RotaProtegida({ tela, children }: { tela: string; children: ReactNode }
 
   const perfil = perfis.find((p) => p.id === usuarioAtual.perfilId)
   const telaInfo = TELA_POR_ROTA[tela]
+  // O painel é a home: sempre permitido a quem está logado
   const permitido =
-    (perfil?.permissoes.includes(telaInfo?.key ?? tela) ?? false) ||
-    (telaInfo?.semprePermitida ?? false)
+    telaInfo?.key === 'tela-painel' || (perfil?.permissoes.includes(telaInfo?.key ?? tela) ?? false)
 
   if (!permitido) return <TelaBloqueada titulo={telaInfo?.label ?? tela} />
 

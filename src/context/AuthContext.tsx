@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Perfil, Sessao, Usuario } from '@/types/usuario'
+import type { ResultadoLogin } from '@/services/authService'
 import {
   KEY_SESSAO,
   carregarPerfis,
@@ -113,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const entrar = useCallback(
     async (login: string, senha: string) => {
       const res = await entrarService(login, senha)
-      if (!res.ok) {
+      if (res.ok === false) {
         return { ok: false, motivo: res.motivo }
       }
       const usuario = res.usuario
