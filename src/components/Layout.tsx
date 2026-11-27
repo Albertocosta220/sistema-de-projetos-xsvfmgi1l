@@ -1,5 +1,5 @@
 import { useEffect, useState, type ElementType } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   AlertTriangle,
   BarChart3,
@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { useSigef } from '@/context/SigefContext'
 import { Pill } from '@/components/shell'
+import { Button } from '@/components/ui/button'
 
 type NavItem = { to: string; label: string; icon: ElementType }
 type NavGroup = { titulo: string; itens: NavItem[] }
@@ -130,28 +131,39 @@ export default function Layout() {
           </div>
           <div className="flex items-center gap-2">
             <Pill tone="t-accent">{empresas.length} empresa(s)</Pill>
-            <label className="field !gap-1 !min-w-0">
-              <span className="sr-only">Empresa ativa</span>
-              <select
-                className="sig-input !w-auto text-xs"
-                value={empresaAtiva.id}
-                onChange={(e) => trocarEmpresaAtiva(e.target.value)}
-                aria-label="Selecionar empresa ativa"
-              >
-                {empresas.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nomeFantasia}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Pill
-              tone={
-                empresaAtiva.situacaoCadastral === 'ATIVA' ? 't-verde' : ('t-vermelho' as const)
-              }
-            >
-              {empresaAtiva.situacaoCadastral}
-            </Pill>
+            {empresas.length > 0 ? (
+              <>
+                <label className="field !gap-1 !min-w-0">
+                  <span className="sr-only">Empresa ativa</span>
+                  <select
+                    className="sig-input !w-auto text-xs"
+                    value={empresaAtiva.id}
+                    onChange={(e) => trocarEmpresaAtiva(e.target.value)}
+                    aria-label="Selecionar empresa ativa"
+                  >
+                    {empresas.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.nomeFantasia}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Pill
+                  tone={
+                    empresaAtiva.situacaoCadastral === 'ATIVA' ? 't-verde' : ('t-vermelho' as const)
+                  }
+                >
+                  {empresaAtiva.situacaoCadastral}
+                </Pill>
+              </>
+            ) : (
+              <Button asChild size="sm" className="h-7 text-xs">
+                <Link to="/empresas">
+                  <Building2 className="size-3.5 mr-1" />
+                  Cadastrar empresa
+                </Link>
+              </Button>
+            )}
           </div>
         </header>
 

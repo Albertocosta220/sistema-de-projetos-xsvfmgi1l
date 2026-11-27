@@ -38,7 +38,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { XML_EXEMPLO_DUPLICIDADE, XML_EXEMPLO_SALDO_NEGATIVO } from '@/data/seedData'
 import { toast } from 'sonner'
 import { DocumentoFiscal } from '@/types/sigef'
 
@@ -97,20 +96,6 @@ export default function ImportarPage() {
     setTextoXmlColado('')
     toast.success(
       `XML importado! Processados: ${res.importados}, Aguardando De-Para: ${res.pendentesDePara}, Duplicados: ${res.duplicados}`,
-    )
-  }
-
-  const handleImportarExemploDuplicidade = () => {
-    const res = importarXmlsEmLote([XML_EXEMPLO_DUPLICIDADE])
-    toast.info(
-      `Tentativa de importação de duplicidade: detectado status DUPLICIDADE (${res.duplicados})`,
-    )
-  }
-
-  const handleImportarExemploSaldoNegativo = () => {
-    const res = importarXmlsEmLote([XML_EXEMPLO_SALDO_NEGATIVO])
-    toast.warning(
-      `NF-e com saída excessiva importada: saída bloqueada no Kardex pela Regra A03! (${res.importados} doc)`,
     )
   }
 
@@ -386,7 +371,17 @@ export default function ImportarPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {docsFiltrados.length === 0 ? (
+          {documentos.length === 0 ? (
+            <div className="text-center py-10 px-4">
+              <FileCode className="size-8 mx-auto text-slate-300 mb-2" aria-hidden="true" />
+              <p className="text-sm font-semibold text-slate-700">Nenhuma NF-e escriturada</p>
+              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                Importe o XML de uma NF-e real (arquivo, pasta ou colado acima) para começar a
+                escrituração desta empresa. Os documentos aparecerão aqui com o status de
+                processamento.
+              </p>
+            </div>
+          ) : docsFiltrados.length === 0 ? (
             <div className="text-center py-10 text-slate-500 text-xs">
               Nenhum documento encontrado com os filtros informados.
             </div>

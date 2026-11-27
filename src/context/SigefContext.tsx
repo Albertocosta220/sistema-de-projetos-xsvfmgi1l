@@ -24,12 +24,12 @@ import {
   carregarEmpresasCadastradas,
   carregarHistoricoBackups,
   carregarIdEmpresaAtiva,
-  criarSeedVbMetais,
   registrarBackup,
   salvarDadosEmpresa,
   salvarEmpresasCadastradas,
   salvarIdEmpresaAtiva,
 } from '@/services/storageService'
+import { EMPRESA_PLACEHOLDER, limparDadosSeedsOneShot } from '@/services/limpezaSeeds'
 import { calcularItensInventario, reprocessarKardexCronologico } from '@/services/kardexEngine'
 import { parseNFeXml } from '@/services/nfeXmlParser'
 import { consultarDFeSimulado } from '@/services/sefazDfeSimulator'
@@ -97,19 +97,25 @@ interface SigefContextType {
   exportarBackupJson: () => void
   importarBackupJson: (arquivoConteudo: string) => boolean
   restaurarBackupHistorico: (versao: string) => void
-  resetarParaDadosExemplo: () => void
 }
 
 const SigefContext = createContext<SigefContextType | null>(null)
 
+// Produção: remove uma única vez os dados de exemplo da v0.x antes de qualquer leitura
+limparDadosSeedsOneShot()
+
 export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [, startTransition] = useTransition()
   const [empresas, setEmpresas] = useState<Empresa[]>(carregarEmpresasCadastradas)
   const [empresaAtivaId, setEmpresaAtivaId] = useState<string>(carregarIdEmpresaAtiva)
 
-  const empresaAtiva = empresas.find((e) => e.id === empresaAtivaId) || empresas[0]
+  // Sem empresa cadastrada: placeholder em memória (nunca persistido) para as telas
+  // renderizarem; o Painel mostra o onboarding de cadastro da primeira empresa.
+  const empresaAtiva =
+    empresas.find((e) => e.id === empresaAtivaId) || empresas[0] || EMPRESA_PLACEHOLDER
 
-  const [store, setStore] = useState<DadosEmpresaStore>(() => carregarDadosEmpresa(empresaAtiva))
+  const [store, setStore] = useState<DadosEmpresaStore>(() =>
+    carregarDadosEmpresa(empresaAtiva ?? undefined),
+  )
 
   const [historicoBackups, setHistoricoBackups] =
     useState<BackupHistorico[]>(carregarHistoricoBackups)
@@ -138,6 +144,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Ao trocar de empresa, carrega a store correspondente
   useEffect(() => {
+    if (!empresaAtiva) return
     const dados = carregarDadosEmpresa(empresaAtiva)
     setStore(dados)
   }, [empresaAtiva.id])
@@ -149,7 +156,8 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ...prev,
         ...novosDados,
       }
-      salvarDadosEmpresa(atualizado)
+      // Sem empresa real cadastrada, nada é gravado (placeholder nunca persiste)
+      if (empresaAtiva.id) salvarDadosEmpresa(atualizado)
       return atualizado
     })
   }
@@ -175,6 +183,10 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       salvarEmpresasCadastradas(novaLista)
       return novaLista
     })
+    // Primeira empresa (ou troca de contexto): torna-se a empresa ativa
+    salvarIdEmpresaAtiva(empresa.id)
+    setEmpresaAtivaId(empresa.id)
+    setStore(carregarDadosEmpresa(empresa))
     toast.success(`Empresa ${empresa.nomeFantasia} atualizada com sucesso.`)
   }
 
@@ -571,15 +583,6 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }
 
-  const resetarParaDadosExemplo = () => {
-    startTransition(() => {
-      const seed = criarSeedVbMetais()
-      salvarDadosEmpresa(seed)
-      setStore(seed)
-      toast.success('Dados de exemplo da VB Metais reinicializados!')
-    })
-  }
-
   return (
     <SigefContext.Provider
       value={{
@@ -616,7 +619,6 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         exportarBackupJson,
         importarBackupJson,
         restaurarBackupHistorico,
-        resetarParaDadosExemplo,
       }}
     >
       {children}
