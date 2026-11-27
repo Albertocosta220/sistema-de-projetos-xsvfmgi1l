@@ -1,4 +1,4 @@
-import { useEffect, useState, type ElementType } from 'react'
+import { useEffect, useMemo, useState, type ElementType } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -22,8 +22,14 @@ import {
   Upload,
   Menu,
   X,
+  LogOut,
+  UserCircle2,
+  Users,
+  KeyRound,
 } from 'lucide-react'
 import { useSigef } from '@/context/SigefContext'
+import { useAuth } from '@/context/AuthContext'
+import { TELA_POR_ROTA } from '@/types/usuario'
 import { Pill } from '@/components/shell'
 import { Button } from '@/components/ui/button'
 
@@ -63,17 +69,36 @@ const GRUPOS: NavGroup[] = [
       { to: '/manuais', label: 'Manuais', icon: BookOpen },
       { to: '/verificacao', label: 'Verificação (Lupo)', icon: Calendar },
       { to: '/configuracoes', label: 'Configurações', icon: Settings },
+      { to: '/usuarios', label: 'Usuários', icon: Users },
+      { to: '/perfis', label: 'Perfis de acesso', icon: KeyRound },
     ],
   },
 ]
 
 export default function Layout() {
   const { empresaAtiva, empresas, trocarEmpresaAtiva } = useSigef()
+  const { usuarioAtual, perfis, temPermissao, sair } = useAuth()
   const [menuAberto, setMenuAberto] = useState(false)
   const location = useLocation()
 
   // Fecha o drawer mobile a cada troca de rota
   useEffect(() => setMenuAberto(false), [location.pathname])
+
+  const nomePerfilAtual =
+    perfis.find((p) => p.id === usuarioAtual?.perfilId)?.nome ?? 'sem perfil'
+
+  // Menu filtrado pelas permissões do perfil do usuário logado
+  const gruposVisiveis = useMemo(
+    () =>
+      GRUPOS.map((g) => ({
+        ...g,
+        itens: g.itens.filter((it) => {
+          const tela = TELA_POR_ROTA[it.to]
+          return tela ? temPermissao(tela.key) : true
+        }),
+      })).filter((g) => g.itens.length > 0),
+    [temPermissao],
+  )
 
   return (
     <div className="app-shell">
@@ -99,7 +124,7 @@ export default function Layout() {
           </button>
         </div>
 
-        {GRUPOS.map((g) => (
+        {gruposVisiveis.map((g) => (
           <div key={g.titulo}>
             <h4>{g.titulo}</h4>
             {g.itens.map((it) => (
@@ -130,6 +155,23 @@ export default function Layout() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs text-[var(--petroleo)] max-w-[180px] sm:max-w-none">
+              <UserCircle2 aria-hidden="true" className="size-4 text-[var(--accent)] flex-none" />
+              <span className="font-semibold truncate">{usuarioAtual?.nome}</span>
+              <span className="hidden md:inline text-[var(--sig-muted)]">
+                · {nomePerfilAtual}
+              </span>
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={sair}
+            >
+              <LogOut aria-hidden="true" className="size-3.5" />
+              Sair
+            </Button>
             <Pill tone="t-accent">{empresas.length} empresa(s)</Pill>
             {empresas.length > 0 ? (
               <>

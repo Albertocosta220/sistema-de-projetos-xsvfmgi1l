@@ -528,6 +528,21 @@ main button.shadow-xs {
   border-color: var(--accent);
 }
 
+/* ---- Login ---- */
+.login-bg {
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgba(14, 124, 134, 0.14), transparent 60%),
+    radial-gradient(900px 460px at -10% 110%, rgba(18, 59, 87, 0.18), transparent 55%),
+    var(--sig-bg);
+}
+.login-card {
+  background: var(--sig-surface);
+  border: 1px solid var(--sig-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(18, 59, 87, 0.14);
+  padding: 26px 24px;
+}
+
 /* ---- Código / SPED ---- */
 .codeblock {
   background: #0f2733;
