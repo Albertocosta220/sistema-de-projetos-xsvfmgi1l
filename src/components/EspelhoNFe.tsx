@@ -144,6 +144,15 @@ function QuadroCabecalho({ doc, espelho }: { doc: DocumentoFiscal; espelho?: Esp
   )
 }
 
+function CelulaDado({ rotulo, valor }: { rotulo: string; valor: string }) {
+  return (
+    <div className="rounded border border-slate-300 p-2">
+      <div className="text-[9px] uppercase tracking-wide text-slate-500">{rotulo}</div>
+      <div className="text-xs font-semibold text-slate-900 whitespace-nowrap">{valor}</div>
+    </div>
+  )
+}
+
 function QuadroParticipante({
   rotulo,
   xNome,

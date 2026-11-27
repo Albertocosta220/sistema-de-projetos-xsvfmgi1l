@@ -18,6 +18,7 @@ import {
   MovimentoKardex,
   OcorrenciaAuditoria,
   Produto,
+  OrigemRegraDesqualificacao,
   RegraCfop,
   RegraDesqualificacao,
 } from '@/types/sigef'
@@ -104,9 +105,14 @@ interface SigefContextType {
   cancelarNFe: (docId: string, justificativa: string) => void
   reprocessarNotas: () => void
 
-  // Desqualificação para inventário (marca "não gera inventário")
+  // Desqualificação para inventário (marca "não gera inventário") e alias
+  // "Não controla estoque" (mesma regra CNPJ+cProd, origem diferente)
   regrasDesqualificacao: RegraDesqualificacao[]
   desqualificarNota: (docId: string) => { regra: RegraDesqualificacao | null; afetados: number }
+  marcarNaoControlaEstoque: (docId: string) => {
+    regra: RegraDesqualificacao | null
+    afetados: number
+  }
   requalificarNota: (docId: string) => void
 
   // Competência ativa (período da última importação — persistido por empresa)
@@ -540,10 +546,20 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
    * o mesmo produto. Grava ocorrência A13 com o autor (usuário logado) e
    * recalcula o Kardex — os itens desqualificados ficam fora do Bloco H.
    */
-  const desqualificarNota = (docId: string) => {
+  const desqualificarNota = (docId: string) => aplicarMarcaDesqualificacao(docId, 'DESQUALIFICACAO')
+
+  /** Alias "Não controla estoque": mesma regra CNPJ+cProd, origem CONTROLE_ESTOQUE. */
+  const marcarNaoControlaEstoque = (docId: string) =>
+    aplicarMarcaDesqualificacao(docId, 'CONTROLE_ESTOQUE')
+
+  const aplicarMarcaDesqualificacao = (
+    docId: string,
+    origem: OrigemRegraDesqualificacao,
+  ): { regra: RegraDesqualificacao | null; afetados: number } => {
     const doc = store.documentos.find((d) => d.id === docId || d.chaveAcesso === docId)
     if (!doc) return { regra: null, afetados: 0 }
 
+    const modoEstoque = origem === 'CONTROLE_ESTOQUE'
     const cnpjLimpo = (doc.cnpjEmitente || '').replace(/\D/g, '')
     const itens = itensDocumento(doc)
     if (!cnpjLimpo || itens.length === 0) {
@@ -570,28 +586,41 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           xProd: it.xProd,
           criadoPor: nomeAutor,
           chaveDocOrigem: doc.chaveAcesso,
+          origem,
         }),
       )
     })
 
     if (novasRegras.length === store.regrasDesqualificacao.length) {
-      toast.info('Todos os itens desta nota já estão desqualificados para o inventário.')
+      toast.info(
+        modoEstoque
+          ? 'Todos os itens desta nota já estão marcados como "não controla estoque"/"não gera inventário".'
+          : 'Todos os itens desta nota já estão desqualificados para o inventário.',
+      )
       return { regra: null, afetados: 0 }
     }
 
     const documentosMarcados = aplicarRegrasDesqualificacao(store.documentos, novasRegras)
-    const afetados = documentosMarcados.filter((d) => d.desqualificadaParaInventario).length
+    const afetados = documentosMarcados.filter(
+      (d) => d.desqualificadaParaInventario || d.naoControlaEstoque,
+    ).length
 
     const resultado = reprocessarKardexCronologico(store.produtos, documentosMarcados, store.dePara)
 
     const ocorrencia: OcorrenciaAuditoria = {
-      id: `oco-a13-desqual-${Date.now()}`,
+      id: modoEstoque ? `oco-a13-estoque-${Date.now()}` : `oco-a13-desqual-${Date.now()}`,
       regraCodigo: 'A13',
-      regraNome: 'Desqualificação para inventário — itens fora do Bloco H',
+      regraNome: modoEstoque
+        ? 'Marca "Não controla estoque" — itens fora do Kardex/Bloco H'
+        : 'Desqualificação para inventário — itens fora do Bloco H',
       severidade: 'INFO',
-      descricao: `Desqualificação para inventário pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
-        .map((i) => i.cProd)
-        .join(', ')} — ${afetados} documento(s) marcado(s) "não gera inventário".`,
+      descricao: modoEstoque
+        ? `Marca "Não controla estoque" pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
+            .map((i) => i.cProd)
+            .join(', ')} — ${afetados} documento(s) marcado(s) "não controla estoque".`
+        : `Desqualificação para inventário pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
+            .map((i) => i.cProd)
+            .join(', ')} — ${afetados} documento(s) marcado(s) "não gera inventário".`,
       baseLegal: REGUAS_AUDITORIA.find((r) => r.codigo === 'A13')?.baseLegal || '',
       documentoRef: doc.numero,
       chaveAcessoRef: doc.chaveAcesso,
@@ -608,7 +637,9 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     })
 
     toast.success(
-      `Nota desqualificada para o inventário: ${afetados} documento(s) do emitente ${cnpjLimpo} com o(s) mesmo(s) produto(s) ficam fora do Bloco H.`,
+      modoEstoque
+        ? `Nota ${doc.numero} marcada como "não controla estoque": ${afetados} documento(s) do emitente ${cnpjLimpo} com o(s) mesmo(s) produto(s) ficam fora do Kardex e do Bloco H.`
+        : `Nota desqualificada para o inventário: ${afetados} documento(s) do emitente ${cnpjLimpo} com o(s) mesmo(s) produto(s) ficam fora do Bloco H.`,
     )
     return { regra: novasRegras[novasRegras.length - 1] ?? null, afetados }
   }
@@ -1071,6 +1102,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         kardex: store.kardex,
         regrasDesqualificacao: store.regrasDesqualificacao,
         desqualificarNota,
+        marcarNaoControlaEstoque,
         requalificarNota,
         fechamentos: store.fechamentos,
         ocorrencias: store.ocorrencias,

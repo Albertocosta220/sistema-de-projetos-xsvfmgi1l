@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const redefinirSenhaAdmin = useCallback(
     async (login: string, novaSenha: string) => {
       const res = await redefinirSenhaAdministradorService(login, novaSenha)
-      if (!res.ok) return { ok: false, motivo: res.motivo }
+      if (res.ok === false) return { ok: false, motivo: res.motivo }
       const usuario = carregarUsuarios().find((u) => u.login === res.login)
       if (usuario) {
         setUsuarioAtual(usuario)

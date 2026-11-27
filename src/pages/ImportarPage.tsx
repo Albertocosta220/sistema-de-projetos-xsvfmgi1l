@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSigef } from '@/context/SigefContext'
+
 import {
   AlertCircle,
   AlertTriangle,
@@ -12,6 +13,8 @@ import {
   FileSearch,
   FolderOpen,
   Info,
+  MoreVertical,
+  PackageX,
   RefreshCw,
   Search,
   ShieldOff,
@@ -41,6 +44,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import { DocumentoFiscal } from '@/types/sigef'
 import { useAuth } from '@/context/AuthContext'
@@ -56,6 +65,7 @@ export default function ImportarPage() {
     reprocessarNotas,
     periodoAtivo,
     desqualificarNota,
+    marcarNaoControlaEstoque,
     requalificarNota,
   } = useSigef()
   const { temPermissao, usuarioAtual } = useAuth()
@@ -75,7 +85,16 @@ export default function ImportarPage() {
   const [docParaCancelar, setDocParaCancelar] = useState<DocumentoFiscal | null>(null)
   const [justificativaCancelamento, setJustificativaCancelamento] = useState('')
   const [docParaDesqualificar, setDocParaDesqualificar] = useState<DocumentoFiscal | null>(null)
+  const [modoDesqualificacao, setModoDesqualificacao] = useState<'inventario' | 'estoque'>(
+    'inventario',
+  )
   const [docEspelho, setDocEspelho] = useState<DocumentoFiscal | null>(null)
+
+  /** Abre o diálogo de marcação no modo escolhido (inventário ou controle de estoque). */
+  const abrirDialogoDesqualificar = (doc: DocumentoFiscal, modo: 'inventario' | 'estoque') => {
+    setModoDesqualificacao(modo)
+    setDocParaDesqualificar(doc)
+  }
 
   const fileInputLoteRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -139,16 +158,21 @@ export default function ImportarPage() {
 
   const confirmarDesqualificacao = () => {
     if (!docParaDesqualificar) return
-    const res = desqualificarNota(docParaDesqualificar.id)
+    const res =
+      modoDesqualificacao === 'estoque'
+        ? marcarNaoControlaEstoque(docParaDesqualificar.id)
+        : desqualificarNota(docParaDesqualificar.id)
     setDocParaDesqualificar(null)
     if (!res.regra) {
       toast.error(
-        'Não foi possível desqualificar: a nota não possui itens com código identificável.',
+        'Não foi possível marcar: a nota não possui itens com código identificável (ou já estava marcada).',
       )
       return
     }
     toast.success(
-      `Nota ${docParaDesqualificar.numero} desqualificada para o Inventário — ${res.afetados} documento(s) do mesmo emitente/produto marcado(s) como "não gera inventário".`,
+      modoDesqualificacao === 'estoque'
+        ? `Nota ${docParaDesqualificar.numero} marcada como "não controla estoque" — ${res.afetados} documento(s) do mesmo emitente/produto fora do Kardex e do Bloco H.`
+        : `Nota ${docParaDesqualificar.numero} desqualificada para o Inventário — ${res.afetados} documento(s) do mesmo emitente/produto marcado(s) como "não gera inventário".`,
     )
   }
 
@@ -513,10 +537,17 @@ export default function ImportarPage() {
                           {getStatusBadge(doc.status)}
                           {doc.desqualificadaParaInventario && (
                             <div className="mt-1">
-                              <Badge className="bg-teal-100 text-teal-800 border border-teal-300 text-[10px] flex items-center gap-1 w-fit">
-                                <ShieldOff className="size-3" aria-hidden="true" />
-                                Desqualificada p/ Inventário
-                              </Badge>
+                              {doc.naoControlaEstoque ? (
+                                <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] flex items-center gap-1 w-fit">
+                                  <PackageX className="size-3" aria-hidden="true" />
+                                  Não controla estoque
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-teal-100 text-teal-800 border border-teal-300 text-[10px] flex items-center gap-1 w-fit">
+                                  <ShieldOff className="size-3" aria-hidden="true" />
+                                  Desqualificada p/ Inventário
+                                </Badge>
+                              )}
                               {doc.desqualificadaPor && (
                                 <div className="text-[10px] text-teal-700/80 mt-0.5">
                                   por {doc.desqualificadaPor}
@@ -574,28 +605,46 @@ export default function ImportarPage() {
                                 onClick={() => confirmarRequalificacao(doc)}
                                 title={
                                   podeProcessar
-                                    ? 'Remover a marca "não gera inventário" (regras do emitente/produto)'
+                                    ? 'Remover as marcas "não gera inventário"/"não controla estoque" (regras do emitente/produto)'
                                     : 'Sem permissão: exige a ação "Processar notas" no perfil'
                                 }
                               >
                                 Requalificar
                               </Button>
                             ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={!podeProcessar}
-                                className="h-7 text-xs text-teal-700 hover:text-teal-800 hover:bg-teal-50"
-                                onClick={() => setDocParaDesqualificar(doc)}
-                                title={
-                                  podeProcessar
-                                    ? 'Marcar "não gera inventário": este emitente/produto fica fora do Bloco H'
-                                    : 'Sem permissão: exige a ação "Processar notas" no perfil'
-                                }
-                              >
-                                <ShieldOff className="size-3.5 mr-1" aria-hidden="true" />
-                                Desqualificar
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={!podeProcessar}
+                                    className="h-7 text-xs text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+                                    title={
+                                      podeProcessar
+                                        ? 'Marcar a nota: fora do Bloco H (inventário) ou fora do Kardex (não controla estoque)'
+                                        : 'Sem permissão: exige a ação "Processar notas" no perfil'
+                                    }
+                                  >
+                                    <ShieldOff className="size-3.5 mr-1" aria-hidden="true" />
+                                    Marcar
+                                    <MoreVertical className="size-3 ml-0.5" aria-hidden="true" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => abrirDialogoDesqualificar(doc, 'inventario')}
+                                  >
+                                    <ShieldOff className="size-3.5 mr-1.5" aria-hidden="true" />
+                                    Desqualificar p/ Inventário (Bloco H)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => abrirDialogoDesqualificar(doc, 'estoque')}
+                                  >
+                                    <PackageX className="size-3.5 mr-1.5" aria-hidden="true" />
+                                    Não controla estoque (Kardex/Bloco H)
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
 
                             {doc.status !== 'CANCELADO' && podeProcessar && (
@@ -738,9 +787,10 @@ export default function ImportarPage() {
         </Dialog>
       )}
 
-      {/* Modal de confirmação da desqualificação para inventário */}
+      {/* Modal de confirmação da desqualificação p/ inventário ou "não controla estoque" */}
       <DialogoDesqualificarNota
         doc={docParaDesqualificar}
+        modo={modoDesqualificacao}
         onConfirm={confirmarDesqualificacao}
         onCancel={() => setDocParaDesqualificar(null)}
       />
