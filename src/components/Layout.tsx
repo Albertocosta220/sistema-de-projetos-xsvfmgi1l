@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ElementType } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
-  AlertTriangle,
   BarChart3,
   BookOpen,
   Bot,

@@ -1,9 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import {
-  Perfil,
-  Sessao,
-  Usuario,
-} from '@/types/usuario'
+import { Perfil, Sessao, Usuario } from '@/types/usuario'
 import {
   KEY_SESSAO,
   carregarPerfis,
@@ -55,7 +51,10 @@ interface AuthContextType {
 
   // Perfis (ação acao-gerenciar-perfis)
   criarPerfil: (nome: string, descricao: string) => Perfil | null
-  editarPerfil: (id: string, dados: { nome: string; descricao: string; permissoes: string[] }) => void
+  editarPerfil: (
+    id: string,
+    dados: { nome: string; descricao: string; permissoes: string[] },
+  ) => void
   excluirPerfil: (id: string) => { ok: boolean; motivo?: string }
 
   // Permissões
@@ -126,18 +125,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessao(null)
   }, [])
 
-  const criarAdministrador = useCallback(async (dados: { nome: string; login: string; senha: string }) => {
-    garantirPerfisPadrao()
-    await cadastrarAdministrador(dados)
-    const usuario = carregarUsuarios().find(
-      (u) => u.login === dados.login.trim().toLowerCase(),
-    )
-    if (usuario) {
-      setUsuarioAtual(usuario)
-      setUsuarios(carregarUsuarios())
-      iniciarSessao(usuario)
-    }
-  }, [iniciarSessao])
+  const criarAdministrador = useCallback(
+    async (dados: { nome: string; login: string; senha: string }) => {
+      garantirPerfisPadrao()
+      await cadastrarAdministrador(dados)
+      const usuario = carregarUsuarios().find((u) => u.login === dados.login.trim().toLowerCase())
+      if (usuario) {
+        setUsuarioAtual(usuario)
+        setUsuarios(carregarUsuarios())
+        iniciarSessao(usuario)
+      }
+    },
+    [iniciarSessao],
+  )
 
   // ============ Usuários ============
 
@@ -175,13 +175,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const alvo = usuarios.find((u) => u.id === id)
       if (alvo?.perfilId === 'perfil-administrador' && dados.perfilId !== 'perfil-administrador') {
         // Impede o único admin de perder o acesso administrativo
-        const outrosAdmins = usuarios.filter((u) => u.perfilId === 'perfil-administrador' && u.id !== id && u.ativo)
+        const outrosAdmins = usuarios.filter(
+          (u) => u.perfilId === 'perfil-administrador' && u.id !== id && u.ativo,
+        )
         if (outrosAdmins.length === 0) {
           return { ok: false, motivo: 'ULTIMO_ADMIN' }
         }
       }
       const novos = usuarios.map((u) =>
-        u.id === id ? { ...u, nome: dados.nome.trim(), login, perfilId: dados.perfilId, atualizadoEm: new Date().toISOString() } : u,
+        u.id === id
+          ? {
+              ...u,
+              nome: dados.nome.trim(),
+              login,
+              perfilId: dados.perfilId,
+              atualizadoEm: new Date().toISOString(),
+            }
+          : u,
       )
       salvarUsuarios(novos)
       setUsuarios(novos)
@@ -232,29 +242,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ============ Perfis ============
 
-  const criarPerfil = useCallback((nome: string, descricao: string): Perfil | null => {
-    const nomeLimpo = nome.trim()
-    if (!nomeLimpo) return null
-    if (perfis.some((p) => p.nome.toLowerCase() === nomeLimpo.toLowerCase())) return null
-    const novo: Perfil = {
-      id: `perfil-${crypto.randomUUID()}`,
-      nome: nomeLimpo,
-      descricao: descricao.trim(),
-      permissoes: [],
-      sistema: false,
-      atualizadoEm: new Date().toISOString(),
-    }
-    const novos = [...perfis, novo]
-    salvarPerfis(novos)
-    setPerfis(novos)
-    return novo
-  }, [perfis])
+  const criarPerfil = useCallback(
+    (nome: string, descricao: string): Perfil | null => {
+      const nomeLimpo = nome.trim()
+      if (!nomeLimpo) return null
+      if (perfis.some((p) => p.nome.toLowerCase() === nomeLimpo.toLowerCase())) return null
+      const novo: Perfil = {
+        id: `perfil-${crypto.randomUUID()}`,
+        nome: nomeLimpo,
+        descricao: descricao.trim(),
+        permissoes: [],
+        sistema: false,
+        atualizadoEm: new Date().toISOString(),
+      }
+      const novos = [...perfis, novo]
+      salvarPerfis(novos)
+      setPerfis(novos)
+      return novo
+    },
+    [perfis],
+  )
 
   const editarPerfil = useCallback(
     (id: string, dados: { nome: string; descricao: string; permissoes: string[] }) => {
       const novos = perfis.map((p) =>
         p.id === id
-          ? { ...p, nome: dados.nome.trim(), descricao: dados.descricao.trim(), permissoes: dados.permissoes, atualizadoEm: new Date().toISOString() }
+          ? {
+              ...p,
+              nome: dados.nome.trim(),
+              descricao: dados.descricao.trim(),
+              permissoes: dados.permissoes,
+              atualizadoEm: new Date().toISOString(),
+            }
           : p,
       )
       salvarPerfis(novos)
@@ -310,7 +329,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       excluirPerfil,
       temPermissao,
     }),
-    [pronto, precisaOnboarding, usuarioAtual, sessao, usuarios, perfis, entrar, sair, criarAdministrador, criarUsuario, editarUsuario, alternarAtivoUsuario, redefinirSenha, criarPerfil, editarPerfil, excluirPerfil, temPermissao],
+    [
+      pronto,
+      precisaOnboarding,
+      usuarioAtual,
+      sessao,
+      usuarios,
+      perfis,
+      entrar,
+      sair,
+      criarAdministrador,
+      criarUsuario,
+      editarUsuario,
+      alternarAtivoUsuario,
+      redefinirSenha,
+      criarPerfil,
+      editarPerfil,
+      excluirPerfil,
+      temPermissao,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

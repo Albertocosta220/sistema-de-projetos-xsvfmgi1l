@@ -122,7 +122,13 @@ export function montarPerfisPadrao(agora: string): Perfil[] {
       nome: 'Fiscal',
       descricao: 'Operação fiscal completa, sem gestão de usuários e perfis',
       permissoes: todas.filter(
-        (p) => !['tela-usuarios', 'tela-perfis', 'acao-gerenciar-usuarios', 'acao-gerenciar-perfis'].includes(p),
+        (p) =>
+          ![
+            'tela-usuarios',
+            'tela-perfis',
+            'acao-gerenciar-usuarios',
+            'acao-gerenciar-perfis',
+          ].includes(p),
       ),
       sistema: true,
       atualizadoEm: agora,
