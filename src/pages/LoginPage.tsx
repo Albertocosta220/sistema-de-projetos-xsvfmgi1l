@@ -1,4 +1,5 @@
-import React, { useState, type FormEvent } from 'react'
+import React, { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,25 @@ import { Lock, LogIn, ShieldCheck, User } from 'lucide-react'
  * Nenhum usuário de exemplo é criado — produção oficial.
  */
 export default function LoginPage() {
-  const { precisaOnboarding, entrar, criarAdministrador } = useAuth()
+  const { pronto, usuarioAtual, precisaOnboarding, entrar, criarAdministrador } = useAuth()
+  const navigate = useNavigate()
+
+  // Sessão válida (login recém-feito ou restaurada do boot) → sai da tela de
+  // login imediatamente. É isto que faz o entrar "de primeira", sem F5.
+  useEffect(() => {
+    if (pronto && usuarioAtual) navigate('/', { replace: true })
+  }, [pronto, usuarioAtual, navigate])
+
+  if (!pronto)
+    return (
+      <AuthShell
+        icone={<Lock className="size-6" />}
+        titulo="Carregando…"
+        subtitulo="Preparando o ambiente."
+      >
+        <div aria-hidden="true" />
+      </AuthShell>
+    )
 
   if (precisaOnboarding) {
     return <OnboardingAdmin criarAdministrador={criarAdministrador} />

@@ -34,7 +34,8 @@ function gravar(chave: string, valor: unknown): void {
 // ============ Perfis ============
 
 export function carregarPerfis(): Perfil[] {
-  return ler<Perfil[]>(KEY_PERFIS) ?? []
+  const lista = ler<Perfil[]>(KEY_PERFIS)
+  return Array.isArray(lista) ? lista : []
 }
 
 export function salvarPerfis(perfis: Perfil[]): void {
@@ -44,10 +45,37 @@ export function salvarPerfis(perfis: Perfil[]): void {
 /**
  * Perfis padrão do sistema (Administrador, Fiscal, Operacional, Consulta).
  * Criados apenas quando não existem — nenhum usuário de exemplo é criado.
+ * Anti-deadlock: se o perfil Administrador não existir ou tiver perdido
+ * permissões, ele é restaurado com acesso total a cada boot.
  */
 export function garantirPerfisPadrao(): Perfil[] {
   const atuais = carregarPerfis()
-  if (atuais.length > 0) return atuais
+  if (atuais.length > 0) {
+    const admin = atuais.find((p) => p.id === 'perfil-administrador')
+    if (!admin || admin.permissoes.length < TODAS_PERMISSOES.length) {
+      let corrigidos = atuais.map((p) =>
+        p.id === 'perfil-administrador'
+          ? { ...p, permissoes: [...TODAS_PERMISSOES], sistema: true }
+          : p,
+      )
+      if (!admin) {
+        corrigidos = [
+          {
+            id: 'perfil-administrador',
+            nome: 'Administrador',
+            descricao: 'Acesso total ao sistema, incluindo usuários e perfis',
+            permissoes: [...TODAS_PERMISSOES],
+            sistema: true,
+            atualizadoEm: new Date().toISOString(),
+          },
+          ...corrigidos,
+        ]
+      }
+      salvarPerfis(corrigidos)
+      return corrigidos
+    }
+    return atuais
+  }
   const padroes = montarPerfisPadrao(new Date().toISOString())
   salvarPerfis(padroes)
   return padroes
@@ -56,7 +84,8 @@ export function garantirPerfisPadrao(): Perfil[] {
 // ============ Usuários ============
 
 export function carregarUsuarios(): Usuario[] {
-  return ler<Usuario[]>(KEY_USUARIOS) ?? []
+  const lista = ler<Usuario[]>(KEY_USUARIOS)
+  return Array.isArray(lista) ? lista : []
 }
 
 export function salvarUsuarios(usuarios: Usuario[]): void {
@@ -150,6 +179,7 @@ export async function conferirSenha(usuario: Usuario, senha: string): Promise<bo
 
 /** Lista de permissões efetivas de um perfil (vazio se o perfil não existir). */
 export function permissoesDoPerfil(perfilId: string): string[] {
+  if (perfilId === 'perfil-administrador') return [...TODAS_PERMISSOES]
   return carregarPerfis().find((p) => p.id === perfilId)?.permissoes ?? []
 }
 

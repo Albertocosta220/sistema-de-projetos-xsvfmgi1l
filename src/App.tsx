@@ -1,10 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { SigefProvider } from '@/context/SigefContext'
-import RequireAuth from '@/components/RequireAuth'
 import Layout from '@/components/Layout'
 import LoginPage from '@/pages/LoginPage'
 import PainelPage from '@/pages/PainelPage'
@@ -35,22 +34,20 @@ import { TELA_POR_ROTA } from '@/types/usuario'
  * Rota protegida por tela: exige sessão ativa E permissão da tela no perfil
  * do usuário logado. Sem permissão mostra bloqueio (não crash).
  */
-function RotaProtegida({ tela, children }: { tela: string; children: ReactNode }) {
-  const { usuarioAtual, perfis, pronto } = useAuth()
+function RotaProtegida({ children }: { children: ReactNode }) {
+  const { pronto, usuarioAtual, temPermissao } = useAuth()
+  const location = useLocation()
 
   if (!pronto) return null
 
   if (!usuarioAtual) return <Navigate to="/login" replace />
 
-  if (tela === 'painel') return <>{children}</>
-
-  const perfil = perfis.find((p) => p.id === usuarioAtual.perfilId)
-  const telaInfo = TELA_POR_ROTA[tela]
-  // O painel é a home: sempre permitido a quem está logado
-  const permitido =
-    telaInfo?.key === 'tela-painel' || (perfil?.permissoes.includes(telaInfo?.key ?? tela) ?? false)
-
-  if (!permitido) return <TelaBloqueada titulo={telaInfo?.label ?? tela} />
+  // A permissão é sempre resolvida pela ROTA atual via TELA_POR_ROTA (mapa rota → tela),
+  // nunca pela chave passada solta — telas sem chave mapeada ficam livres.
+  const telaInfo = TELA_POR_ROTA[location.pathname]
+  if (telaInfo && !temPermissao(telaInfo.key)) {
+    return <TelaBloqueada titulo={telaInfo.label} />
+  }
 
   return <>{children}</>
 }
@@ -74,28 +71,28 @@ function TelaBloqueada({ titulo }: { titulo: string }) {
   )
 }
 
-const ROTAS: { path: string; tela: string; element: ReactNode }[] = [
-  { path: '/', tela: 'painel', element: <PainelPage /> },
-  { path: '/importar', tela: 'importar', element: <ImportarPage /> },
-  { path: '/kardex', tela: 'kardex', element: <KardexPage /> },
-  { path: '/inventario', tela: 'inventario', element: <InventarioPage /> },
-  { path: '/bloco-k', tela: 'bloco-k', element: <BlocoKPage /> },
-  { path: '/sped', tela: 'sped', element: <SpedPage /> },
-  { path: '/produtos', tela: 'produtos', element: <ProdutosPage /> },
-  { path: '/fornecedores', tela: 'fornecedores', element: <FornecedoresPage /> },
-  { path: '/regras-cfop', tela: 'regras-cfop', element: <RegrasCfopPage /> },
-  { path: '/empresas', tela: 'empresas', element: <EmpresasSefazPage /> },
-  { path: '/sefaz', tela: 'sefaz', element: <EmpresasSefazPage /> },
-  { path: '/auditoria', tela: 'auditoria', element: <AuditoriaPage /> },
-  { path: '/reforma', tela: 'reforma', element: <ReformaTributariaPage /> },
-  { path: '/assistente', tela: 'assistente', element: <AssistenteIaPage /> },
-  { path: '/backup', tela: 'backup', element: <BackupPage /> },
-  { path: '/certificado', tela: 'certificado', element: <CertificadoPage /> },
-  { path: '/manuais', tela: 'manuais', element: <ManuaisPage /> },
-  { path: '/verificacao', tela: 'verificacao', element: <VerificacaoLupoPage /> },
-  { path: '/configuracoes', tela: 'configuracoes', element: <ConfiguracoesPage /> },
-  { path: '/usuarios', tela: 'usuarios', element: <UsuariosPage /> },
-  { path: '/perfis', tela: 'perfis', element: <PerfisPage /> },
+const ROTAS: { path: string; element: ReactNode }[] = [
+  { path: '/', element: <PainelPage /> },
+  { path: '/importar', element: <ImportarPage /> },
+  { path: '/kardex', element: <KardexPage /> },
+  { path: '/inventario', element: <InventarioPage /> },
+  { path: '/bloco-k', element: <BlocoKPage /> },
+  { path: '/sped', element: <SpedPage /> },
+  { path: '/produtos', element: <ProdutosPage /> },
+  { path: '/fornecedores', element: <FornecedoresPage /> },
+  { path: '/regras-cfop', element: <RegrasCfopPage /> },
+  { path: '/empresas', element: <EmpresasSefazPage /> },
+  { path: '/sefaz', element: <EmpresasSefazPage /> },
+  { path: '/auditoria', element: <AuditoriaPage /> },
+  { path: '/reforma', element: <ReformaTributariaPage /> },
+  { path: '/assistente', element: <AssistenteIaPage /> },
+  { path: '/backup', element: <BackupPage /> },
+  { path: '/certificado', element: <CertificadoPage /> },
+  { path: '/manuais', element: <ManuaisPage /> },
+  { path: '/verificacao', element: <VerificacaoLupoPage /> },
+  { path: '/configuracoes', element: <ConfiguracoesPage /> },
+  { path: '/usuarios', element: <UsuariosPage /> },
+  { path: '/perfis', element: <PerfisPage /> },
 ]
 
 const App = () => (
@@ -108,12 +105,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<Layout />}>
-              {ROTAS.map(({ path, tela, element }) => (
-                <Route
-                  key={path}
-                  path={path}
-                  element={<RotaProtegida tela={tela}>{element}</RotaProtegida>}
-                />
+              {ROTAS.map(({ path, element }) => (
+                <Route key={path} path={path} element={<RotaProtegida>{element}</RotaProtegida>} />
               ))}
             </Route>
             <Route path="*" element={<NotFound />} />

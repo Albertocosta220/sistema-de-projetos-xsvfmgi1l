@@ -14,8 +14,11 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Plus, Pencil, ShieldCheck, Users } from 'lucide-react'
-import { TELAS, ACOES } from '@/types/usuario'
+import { TELAS, ACOES, TODAS_PERMISSOES } from '@/types/usuario'
 import type { Perfil } from '@/types/usuario'
+
+/** Id do perfil Administrador criado no onboarding (acesso total inalienável). */
+const ID_PERFIL_ADMIN = 'perfil-administrador'
 
 export default function PerfisPage() {
   const { perfis, usuarios, salvarPerfil } = useAuth()
@@ -103,7 +106,7 @@ export default function PerfisPage() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="font-semibold text-[var(--petroleo)] flex items-center gap-1.5">
-                    {p.id === 'perfil-admin' && (
+                    {p.id === ID_PERFIL_ADMIN && (
                       <ShieldCheck
                         aria-hidden="true"
                         className="size-4 text-[var(--accent)] flex-none"
@@ -118,6 +121,7 @@ export default function PerfisPage() {
                   size="sm"
                   onClick={() => abreEdicao(p)}
                   aria-label={`Editar perfil ${p.nome}`}
+                  disabled={p.id === ID_PERFIL_ADMIN}
                 >
                   <Pencil className="size-3.5" />
                 </Button>
@@ -126,8 +130,8 @@ export default function PerfisPage() {
                 <Users aria-hidden="true" className="size-3.5" />
                 {usuariosNoPerfil.get(p.id) ?? 0} usuário(s)
                 <span aria-hidden="true">·</span>
-                {p.id === 'perfil-admin'
-                  ? 'todas as permissões'
+                {p.id === ID_PERFIL_ADMIN
+                  ? 'todas as permissões (acesso total)'
                   : `${p.permissoes.length} permissões`}
               </div>
             </div>
@@ -145,6 +149,12 @@ export default function PerfisPage() {
               Marque as telas e ações liberadas. O Administrador tem sempre acesso total.
             </DialogDescription>
           </DialogHeader>
+          {editando?.id === ID_PERFIL_ADMIN && (
+            <p className="text-xs text-[var(--sig-muted)]" role="note">
+              O perfil Administrador tem acesso total garantido pelo sistema e não pode ser editado
+              — isso impede que o próprio administrador fique sem acesso.
+            </p>
+          )}
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">

@@ -120,6 +120,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const usuario = res.usuario
       setUsuarioAtual(usuario)
       setUsuarios(carregarUsuarios())
+      // Reflui os perfis do localStorage (podem ter mudado em outra aba/boot)
+      setPerfis(carregarPerfis())
       iniciarSessao(usuario)
       return { ok: true }
     },
@@ -136,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (dados: { nome: string; login: string; senha: string }) => {
       garantirPerfisPadrao()
       await cadastrarAdministrador(dados)
+      setPerfis(carregarPerfis())
       const usuario = carregarUsuarios().find((u) => u.login === dados.login.trim().toLowerCase())
       if (usuario) {
         setUsuarioAtual(usuario)
@@ -335,6 +338,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!usuarioAtual) return false
       // 'painel' é a home: sempre visível para quem está logado
       if (chave === 'tela-painel') return true
+      // O Administrador (perfil do onboarding) tem acesso total INALIENÁVEL,
+      // garantido por código — nem uma matriz corrompida bloqueia o admin.
+      if (usuarioAtual.perfilId === 'perfil-administrador') return true
       const doPerfil = perfis.find((p) => p.id === usuarioAtual.perfilId)?.permissoes ?? []
       return doPerfil.includes(chave)
     },
