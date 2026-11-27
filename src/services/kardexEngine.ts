@@ -5,8 +5,10 @@ import {
   MovimentoKardex,
   OcorrenciaAuditoria,
   Produto,
+  RegraDesqualificacao,
 } from '@/types/sigef'
 import { REGUAS_AUDITORIA } from '@/data/regrasAuditoria'
+import { chaveRegraDesqualificacao, chavesNaoVinculaEstoque } from './desqualificacaoService'
 import { normalizarCodigo } from './vinculoAutomaticoService'
 
 export interface ResultadoProcessamentoLote {
@@ -41,9 +43,11 @@ export function buscarDePara(
 }
 
 /**
- * Recomputa toda a linha do tempo do Kardex por Custo Médio Ponderado (CMP)
- * Respeita saídas bloqueadas por saldo negativo (Regra A03) e estornos de notas canceladas (Regra A05).
+ * Recomputa toda a linha do tempo do Kardex por Custo Médio Ponderado (CMP).
+ * Respeita saídas bloqueadas por saldo negativo (Regra A03), estornos de notas
+ * canceladas (Regra A05) e itens com regra "Não vincular" (sem pendência de de-para).
  */
+
 export function reprocessarKardexCronologico(
   produtos: Produto[],
   documentos: DocumentoFiscal[],
@@ -54,12 +58,19 @@ export function reprocessarKardexCronologico(
     quantidadeAjuste: number // positivo = entrada, negativo = saída
     motivo: string
   }> = [],
+  regrasDesqualificacao: RegraDesqualificacao[] = [],
 ): {
   documentosAtualizados: DocumentoFiscal[]
   kardex: MovimentoKardex[]
   ocorrencias: OcorrenciaAuditoria[]
 } {
   const ocorrencias: OcorrenciaAuditoria[] = []
+
+  // Pares CNPJ emitente + cProd com regra "Não vincular": esses itens não têm
+  // de-para a resolver — NÃO geram pendência, aviso nem erro (o "resolver
+  // de-para" nunca será executado para eles).
+  const paresNaoVinculados = chavesNaoVinculaEstoque(regrasDesqualificacao)
+
   const docsOrdenados = [...documentos].sort(
     (a, b) => new Date(a.dataEmissao).getTime() - new Date(b.dataEmissao).getTime(),
   )
@@ -98,6 +109,25 @@ export function reprocessarKardexCronologico(
 
     let pendenteDePara = false
     const itensResolvidos = (doc.itens || []).map((item) => {
+      // Item com regra "Não vincular" (CNPJ emitente + cProd): fica fora do
+      // de-para sem virar pendência, aviso (A02) nem erro — a nota segue
+      // visível com o badge violeta derivado das regras.
+      if (paresNaoVinculados.has(chaveRegraDesqualificacao(doc.cnpjEmitente, item.cProd))) {
+        return {
+          ...item,
+          // Sem vínculo por definição (o de-para NÃO é criado) — mas também sem
+          // pendência: não vira AGUARDANDO_DE_PARA, aviso (A02) nem erro.
+          pendenteDePara: false,
+          codigoInventario: undefined,
+          fatorConversaoAplicado: item.fatorConversaoAplicado ?? 1,
+          quantidadeConvertida: item.quantidadeConvertida ?? item.qCom,
+          custoLiquidoAquisicao: item.custoLiquidoAquisicao ?? Math.max(0, item.vProd),
+          custoUnitarioConvertido:
+            item.custoUnitarioConvertido ??
+            (item.qCom > 0 ? Math.max(0, item.vProd) / item.qCom : 0),
+        }
+      }
+
       // Se for saída emitida pela própria empresa, o código já costuma ser o próprio do produto
       let codInv: string | undefined
       let fator = 1.0

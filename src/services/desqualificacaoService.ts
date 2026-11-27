@@ -114,6 +114,34 @@ export function aplicarRegrasDesqualificacao(
   })
 }
 
+/**
+ * Chaves de regra "Não vincular" (CNPJ emitente + cProd) a partir de uma lista
+ * de regras — usado ANTES de classificar pendência de de-para: item com essa
+ * regra ativa NÃO entra na lista de pendências (nem em Produtos → Pendências
+ * de De-Para, nem na contagem da fila/Painel), não fica em
+ * AGUARDANDO_DE_PARA por esse motivo e não gera aviso nem erro — não há
+ * resolver de-para a executar.
+ */
+export function chavesNaoVinculaEstoque(regras: RegraDesqualificacao[]): Set<string> {
+  return new Set(
+    (regras || [])
+      .filter((r) => r.origem === 'NAO_VINCULA_ESTOQUE')
+      .map((r) => chaveRegraDesqualificacao(r.cnpjEmitente, r.cProd)),
+  )
+}
+
+/**
+ * Diz se um item (CNPJ emitente + cProd) tem regra ativa "Não vincular" —
+ * se tiver, não pode virar pendência de de-para, aviso nem erro.
+ */
+export function itemNaoVinculado(
+  regras: RegraDesqualificacao[],
+  cnpjEmitente: string,
+  cProd: string,
+): boolean {
+  return chavesNaoVinculaEstoque(regras).has(chaveRegraDesqualificacao(cnpjEmitente, cProd))
+}
+
 /** Itens (cProd distintos) de um documento, com descrição, para confirmar a marca. */
 export function itensDocumento(doc: DocumentoFiscal): Array<{ cProd: string; xProd: string }> {
   const itens = Array.isArray(doc.itens) ? doc.itens : []

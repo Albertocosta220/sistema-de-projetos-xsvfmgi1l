@@ -46,7 +46,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { Produto } from '@/types/sigef'
 import { CNPJ_REGRA_CFOP_LEGADO } from '@/services/regrasCfopService'
-import { chaveRegraDesqualificacao } from '@/services/desqualificacaoService'
+import {
+  chaveRegraDesqualificacao,
+  chavesNaoVinculaEstoque,
+} from '@/services/desqualificacaoService'
 import {
   compararComCatalogo,
   lerPlanilhaSucatas,
@@ -173,17 +176,13 @@ export default function ProdutosPage() {
   const pendenciasDePara: ItemPendente[] = []
   // Itens gravados como "Não vincular" (CNPJ + cProd) saem das pendências:
   // a regra já os exclui do estoque/inventário — não há vínculo a criar.
-  const chavesNaoVinculadas = new Set(
-    regrasDesqualificacao
-      .filter((r) => r.origem === 'NAO_VINCULA_ESTOQUE')
-      .map((r) => chaveRegraDesqualificacao(r.cnpjEmitente, r.cProd)),
-  )
+  const chavesNaoVinculadas = chavesNaoVinculaEstoque(regrasDesqualificacao)
   documentos.forEach((doc) => {
     if (doc.status === 'AGUARDANDO_DE_PARA') {
       ;(doc.itens || []).forEach((it) => {
         if (
           !it.codigoInventario &&
-          !chavesNaoVinculadas.has(chaveRegraDesqualificacao(doc.cnpjEmitente, it.cProd))
+          !chavesNaoVinculadas.has(chaveRegraDesqualificacao(doc.cnpjEmitente || '', it.cProd))
         ) {
           pendenciasDePara.push({
             docId: doc.id,

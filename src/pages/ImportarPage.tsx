@@ -53,6 +53,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import { DocumentoFiscal } from '@/types/sigef'
+import { itemNaoVinculado } from '@/services/desqualificacaoService'
 import { useAuth } from '@/context/AuthContext'
 import { EspelhoNFeDialogBody } from '@/components/EspelhoNFe'
 import { DialogoDesqualificarNota } from '@/components/DialogoDesqualificarNota'
@@ -69,6 +70,7 @@ export default function ImportarPage() {
     marcarNaoControlaEstoque,
     naoVincularNota,
     requalificarNota,
+    regrasDesqualificacao,
   } = useSigef()
   const { temPermissao, usuarioAtual } = useAuth()
   const podeProcessar = temPermissao('acao-processar-notas')
@@ -259,14 +261,14 @@ export default function ImportarPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Título da tela */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-lg font-bold tracking-tight text-slate-900">
             Importação & Fila de Documentos Fiscais
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500">
+          <p className="text-[11px] text-slate-500">
             Varredura recursiva de pasta, upload em lote de XMLs de NF-e e gerenciamento da fila
             cronológica
           </p>
@@ -292,20 +294,20 @@ export default function ImportarPage() {
       </div>
 
       {/* Áreas de Importação */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Upload em lote e Varredura de Pasta */}
         <Card className="lg:col-span-2 border-slate-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Upload className="size-4 text-blue-700" />
               Upload de Arquivos XML de NF-e
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-[11px]">
               Selecione múltiplos arquivos XML ou aponte uma pasta inteira de notas do seu
               computador
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 px-4 pb-4">
             {/* Período da importação — definido uma vez e usado por toda importação da tela */}
             <div className="p-3 bg-blue-50/50 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-end gap-3">
               <div className="flex-1 space-y-1">
@@ -349,9 +351,9 @@ export default function ImportarPage() {
                   if (e.key === 'Enter' || e.key === ' ') fileInputLoteRef.current?.click()
                 }}
                 onClick={() => fileInputLoteRef.current?.click()}
-                className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-5 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-blue-50/50 flex flex-col items-center justify-center gap-2"
+                className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-lg p-3 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-blue-50/50 flex flex-col items-center justify-center gap-1"
               >
-                <div className="size-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center">
+                <div className="size-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center">
                   <Upload className="size-5" />
                 </div>
                 <div className="text-xs font-bold text-slate-800">Selecionar XMLs em Lote</div>
@@ -376,9 +378,9 @@ export default function ImportarPage() {
                   if (e.key === 'Enter' || e.key === ' ') folderInputRef.current?.click()
                 }}
                 onClick={() => folderInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-5 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-emerald-50/50 flex flex-col items-center justify-center gap-2"
+                className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-lg p-3 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-emerald-50/50 flex flex-col items-center justify-center gap-1"
               >
-                <div className="size-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <div className="size-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
                   <FolderOpen className="size-5" />
                 </div>
                 <div className="text-xs font-bold text-slate-800">Varredura de Pasta Completa</div>
@@ -402,16 +404,16 @@ export default function ImportarPage() {
 
         {/* Colar XML Diretamente */}
         <Card className="border-slate-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
               <FileCode className="size-4 text-slate-700" />
               Colar XML de NF-e
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-[11px]">
               Cole o texto cru da tag &lt;nfeProc&gt; ou &lt;NFe&gt;
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-4 pb-4">
             <Textarea
               value={textoXmlColado}
               onChange={(e) => setTextoXmlColado(e.target.value)}
@@ -434,33 +436,33 @@ export default function ImportarPage() {
 
       {/* Fila de Documentos Fiscais */}
       <Card className="border-slate-200">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <CardHeader className="pb-2 pt-4 px-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <CardTitle className="text-base font-bold">
+              <CardTitle className="text-sm font-bold">
                 Fila de Processamento Cronológico ({documentos.length} Documentos)
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-[11px]">
                 Status: PENDENTE, PROCESSADO, AGUARDANDO_DE_PARA, DUPLICIDADE, CANCELADO ou ERRO
               </CardDescription>
             </div>
 
             {/* Filtros e Busca */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-48 sm:w-60">
-                <Search className="size-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="relative w-40 sm:w-52">
+                <Search className="size-3.5 absolute left-2.5 top-2 text-slate-400" />
                 <Input
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Buscar NF, Chave, Emitente..."
-                  className="pl-8 text-xs h-8"
+                  className="pl-8 text-[11px] h-7"
                 />
               </div>
 
               <select
                 value={filtroStatus}
                 onChange={(e) => setFiltroStatus(e.target.value)}
-                className="text-xs h-8 border border-slate-300 rounded-md px-2 bg-white"
+                className="text-[11px] h-7 border border-slate-300 rounded-md px-1.5 bg-white"
                 aria-label="Filtrar por status"
               >
                 <option value="TODOS">Todos os Status</option>
@@ -472,7 +474,7 @@ export default function ImportarPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 pb-2">
           {documentos.length === 0 ? (
             <div className="text-center py-10 px-4">
               <FileCode className="size-8 mx-auto text-slate-300 mb-2" aria-hidden="true" />
@@ -489,30 +491,31 @@ export default function ImportarPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="text-[11px]">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Operação</TableHead>
-                    <TableHead>NF-e / Série</TableHead>
-                    <TableHead>Emissão</TableHead>
-                    <TableHead>Emitente / Fornecedor</TableHead>
-                    <TableHead className="text-right">Valor Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                  <TableRow className="h-7">
+                    <TableHead className="h-7 px-1.5 text-[10px]">Operação</TableHead>
+                    <TableHead className="h-7 px-1.5 text-[10px]">NF-e / Série</TableHead>
+                    <TableHead className="h-7 px-1.5 text-[10px]">Emissão</TableHead>
+                    <TableHead className="h-7 px-1.5 text-[10px]">Emitente / Fornecedor</TableHead>
+                    <TableHead className="h-7 px-1.5 text-[10px] text-right">Valor Total</TableHead>
+                    <TableHead className="h-7 px-1.5 text-[10px]">Status</TableHead>
+                    <TableHead className="h-7 px-1.5 text-[10px] text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {docsFiltrados.map((doc) => {
                     const isAguardando = doc.status === 'AGUARDANDO_DE_PARA'
+                    const tituloEmitente = `${doc.nomeEmitente} (${doc.cnpjEmitente})`
                     return (
                       <TableRow
                         key={doc.id}
                         className={isAguardando ? 'bg-amber-50/40' : undefined}
                       >
-                        <TableCell>
+                        <TableCell className="px-1.5 py-1">
                           <Badge
                             variant="outline"
-                            className={`text-[10px] font-bold ${
+                            className={`text-[9px] px-1 py-0 font-bold ${
                               doc.tipoOperacao === 'ENTRADA'
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                 : 'bg-blue-50 text-blue-800 border-blue-200'
@@ -521,79 +524,91 @@ export default function ImportarPage() {
                             {doc.tipoOperacao}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          <div className="font-bold text-xs text-slate-900">
+                        <TableCell className="px-1.5 py-1">
+                          <div className="font-bold text-[11px] text-slate-900 whitespace-nowrap">
                             Nº {doc.numero} (série {doc.serie})
                           </div>
-                          <div className="font-mono text-[10px] text-slate-400 truncate max-w-[150px]">
+                          <div
+                            className="font-mono text-[9px] text-slate-400 truncate max-w-[110px]"
+                            title={doc.chaveAcesso}
+                          >
                             {doc.chaveAcesso}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs whitespace-nowrap text-slate-600">
+                        <TableCell className="px-1.5 py-1 text-[11px] whitespace-nowrap text-slate-600">
                           {new Date(doc.dataEmissao).toLocaleDateString('pt-BR', {
                             day: '2-digit',
                             month: '2-digit',
-                            year: 'numeric',
+                            year: '2-digit',
                             hour: '2-digit',
                             minute: '2-digit',
                           })}
                         </TableCell>
-                        <TableCell className="text-xs">
-                          <div className="font-medium text-slate-800 truncate max-w-[200px]">
+                        <TableCell className="px-1.5 py-1 text-[11px]" title={tituloEmitente}>
+                          <div
+                            className="font-medium text-slate-800 truncate max-w-[130px]"
+                            title={doc.nomeEmitente}
+                          >
                             {doc.nomeEmitente}
                           </div>
-                          <div className="text-[10px] text-slate-400">{doc.cnpjEmitente}</div>
+                          <div className="text-[9px] text-slate-400">{doc.cnpjEmitente}</div>
                         </TableCell>
-                        <TableCell className="text-right text-xs font-bold text-slate-900 whitespace-nowrap">
+                        <TableCell className="px-1.5 py-1 text-right text-[11px] font-bold text-slate-900 whitespace-nowrap">
                           {new Intl.NumberFormat('pt-BR', {
                             style: 'currency',
                             currency: 'BRL',
                           }).format(doc.valorTotal)}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className="px-1.5 py-1 whitespace-nowrap">
                           {getStatusBadge(doc.status)}
                           {doc.desqualificadaParaInventario && (
-                            <div className="mt-1">
+                            <div className="mt-0.5">
                               {doc.naoVinculaEstoque ? (
-                                <Badge className="bg-violet-100 text-violet-800 border border-violet-300 text-[10px] flex items-center gap-1 w-fit">
-                                  <Link2Off className="size-3" aria-hidden="true" />
+                                <Badge
+                                  className="bg-violet-100 text-violet-800 border border-violet-300 text-[9px] px-1 py-0 flex items-center gap-0.5 w-fit"
+                                  title="Item(ns) gravado(s) como “não vincular”: não geram estoque nem inventário e não entram na pendência de de-para."
+                                >
+                                  <Link2Off className="size-2.5" aria-hidden="true" />
                                   Não vincular (não gera estoque)
                                 </Badge>
                               ) : doc.naoControlaEstoque ? (
-                                <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] flex items-center gap-1 w-fit">
-                                  <PackageX className="size-3" aria-hidden="true" />
+                                <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[9px] px-1 py-0 flex items-center gap-0.5 w-fit">
+                                  <PackageX className="size-2.5" aria-hidden="true" />
                                   Não controla estoque
                                 </Badge>
                               ) : (
-                                <Badge className="bg-teal-100 text-teal-800 border border-teal-300 text-[10px] flex items-center gap-1 w-fit">
-                                  <ShieldOff className="size-3" aria-hidden="true" />
+                                <Badge className="bg-teal-100 text-teal-800 border border-teal-300 text-[9px] px-1 py-0 flex items-center gap-0.5 w-fit">
+                                  <ShieldOff className="size-2.5" aria-hidden="true" />
                                   Desqualificada p/ Inventário
                                 </Badge>
                               )}
                               {doc.desqualificadaPor && (
-                                <div className="text-[10px] text-teal-700/80 mt-0.5">
+                                <div className="text-[9px] text-teal-700/80 mt-0.5">
                                   por {doc.desqualificadaPor}
                                 </div>
                               )}
                             </div>
                           )}
                           {doc.motivoErro && (
-                            <div className="text-[10px] text-rose-600 mt-0.5 truncate max-w-[160px]">
+                            <div
+                              className="text-[9px] text-rose-600 mt-0.5 truncate max-w-[140px]"
+                              title={doc.motivoErro}
+                            >
                               {doc.motivoErro}
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
+                        <TableCell className="px-1.5 py-1 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-0.5">
                             {isAguardando && (
                               <Button
                                 asChild
                                 size="sm"
-                                className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                                className="h-6 px-1.5 text-[10px] bg-amber-600 hover:bg-amber-700 text-white"
                               >
                                 <Link to="/produtos">
                                   <span>Resolver De-Para</span>
-                                  <ArrowRight className="size-3 ml-1" />
+                                  <ArrowRight className="size-2.5 ml-0.5" />
                                 </Link>
                               </Button>
                             )}
@@ -601,21 +616,22 @@ export default function ImportarPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 text-xs"
+                              className="h-6 px-1.5 text-[10px]"
                               onClick={() => setDocSelecionado(doc)}
+                              title="Ver detalhes da nota (itens, valores e vínculos)"
                             >
-                              Ver Detalhes
+                              Detalhes
                             </Button>
 
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 text-xs text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+                              className="h-6 px-1.5 text-[10px]"
                               onClick={() => setDocEspelho(doc)}
                               title="Consultar o XML: espelho completo da NF-e com protocolos e eventos"
                             >
-                              <FileSearch className="size-3.5 mr-1" aria-hidden="true" />
-                              Consultar XML
+                              <FileSearch className="size-3 mr-0.5" aria-hidden="true" />
+                              XML
                             </Button>
 
                             {doc.desqualificadaParaInventario ? (
@@ -623,7 +639,7 @@ export default function ImportarPage() {
                                 variant="ghost"
                                 size="sm"
                                 disabled={!podeProcessar}
-                                className="h-7 text-xs text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+                                className="h-6 px-1.5 text-[10px] text-teal-700 hover:text-teal-800 hover:bg-teal-50"
                                 onClick={() => confirmarRequalificacao(doc)}
                                 title={
                                   podeProcessar
@@ -640,16 +656,16 @@ export default function ImportarPage() {
                                     variant="ghost"
                                     size="sm"
                                     disabled={!podeProcessar}
-                                    className="h-7 text-xs text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+                                    className="h-6 px-1.5 text-[10px] text-teal-700 hover:text-teal-800 hover:bg-teal-50"
                                     title={
                                       podeProcessar
-                                        ? 'Marcar a nota: fora do Bloco H (inventário) ou fora do Kardex (não controla estoque)'
+                                        ? 'Marcar a nota: fora do Bloco H (inventário), fora do Kardex (não controla estoque) ou não vincular (não gera estoque)'
                                         : 'Sem permissão: exige a ação "Processar notas" no perfil'
                                     }
                                   >
-                                    <ShieldOff className="size-3.5 mr-1" aria-hidden="true" />
+                                    <ShieldOff className="size-3 mr-0.5" aria-hidden="true" />
                                     Marcar
-                                    <MoreVertical className="size-3 ml-0.5" aria-hidden="true" />
+                                    <MoreVertical className="size-2.5 ml-0.5" aria-hidden="true" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
@@ -677,7 +693,7 @@ export default function ImportarPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                                className="h-6 px-1.5 text-[10px] text-rose-600 hover:text-rose-800 hover:bg-rose-50"
                                 onClick={() => setDocParaCancelar(doc)}
                                 title="Cancelar NF-e com Estorno Cronológico no Kardex"
                               >
@@ -764,6 +780,18 @@ export default function ImportarPage() {
                                 className="bg-emerald-50 text-emerald-800 border-emerald-200 font-mono text-[10px]"
                               >
                                 {it.codigoInventario} (x{it.fatorConversaoAplicado})
+                              </Badge>
+                            ) : itemNaoVinculado(
+                                regrasDesqualificacao,
+                                docSelecionado.cnpjEmitente,
+                                it.cProd,
+                              ) ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-violet-50 text-violet-800 border-violet-300 text-[10px]"
+                                title='Item gravado como "não vincular": não gera estoque nem inventário.'
+                              >
+                                NÃO VINCULAR
                               </Badge>
                             ) : (
                               <Badge variant="destructive" className="text-[10px]">

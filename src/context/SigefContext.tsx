@@ -296,7 +296,13 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     documentosAtuais: DocumentoFiscal[],
     deParaAtuais: DeParaVigente[],
   ) => {
-    const resultado = reprocessarKardexCronologico(produtosAtuais, documentosAtuais, deParaAtuais)
+    const resultado = reprocessarKardexCronologico(
+      produtosAtuais,
+      documentosAtuais,
+      deParaAtuais,
+      [],
+      store.regrasDesqualificacao,
+    )
     atualizarStore({
       produtos: produtosAtuais,
       documentos: resultado.documentosAtualizados,
@@ -417,7 +423,13 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 3) Reenfileira as notas AGUARDANDO_DE_PARA daquele CNPJ com os novos vínculos
     // (gravação única: o reprocessamento já devolve as ocorrências da régua —
     // a ocorrência A13 do vínculo automático entra junto, sem leitura de estado obsoleto)
-    const resultado = reprocessarKardexCronologico(store.produtos, store.documentos, deParaFinal)
+    const resultado = reprocessarKardexCronologico(
+      store.produtos,
+      store.documentos,
+      deParaFinal,
+      [],
+      store.regrasDesqualificacao,
+    )
     atualizarStore({
       produtos: store.produtos,
       documentos: resultado.documentosAtualizados,
@@ -485,7 +497,13 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // número 'S/N', itens [], valor 0).
     const todosDocumentos = [...store.documentos, ...novosDocs]
 
-    const resultado = reprocessarKardexCronologico(store.produtos, todosDocumentos, store.dePara)
+    const resultado = reprocessarKardexCronologico(
+      store.produtos,
+      todosDocumentos,
+      store.dePara,
+      [],
+      store.regrasDesqualificacao,
+    )
 
     resultado.documentosAtualizados.forEach((d) => {
       if (novosDocs.some((n) => n.id === d.id || n.chaveAcesso === d.chaveAcesso)) {
@@ -621,7 +639,15 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       (d) => d.desqualificadaParaInventario || d.naoControlaEstoque || d.naoVinculaEstoque,
     ).length
 
-    const resultado = reprocessarKardexCronologico(store.produtos, documentosMarcados, store.dePara)
+    // Passa as regras ATUALIZADAS (novasRegras): os itens "não vincular" saem da
+    // fila de de-para e a nota com todos os itens nessa regra vira PROCESSADO.
+    const resultado = reprocessarKardexCronologico(
+      store.produtos,
+      documentosMarcados,
+      store.dePara,
+      [],
+      novasRegras,
+    )
 
     const ocorrencia: OcorrenciaAuditoria = {
       id: modoNaoVincula
@@ -692,7 +718,13 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const documentosMarcados = aplicarRegrasDesqualificacao(store.documentos, restantes)
-    const resultado = reprocessarKardexCronologico(store.produtos, documentosMarcados, store.dePara)
+    const resultado = reprocessarKardexCronologico(
+      store.produtos,
+      documentosMarcados,
+      store.dePara,
+      [],
+      restantes,
+    )
 
     const nomeAutor = usuarioAtual?.nome ?? usuarioAtual?.login ?? '—'
     const ocorrencia: OcorrenciaAuditoria = {
@@ -804,7 +836,13 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Kardex e de-para recalculados com o catálogo ampliado (produtos novos não
     // têm movimento; entram no inventário com saldo zero via calcularItensInventario,
     // SEM apagar saldos/contagens já existentes dos demais)
-    const resultado = reprocessarKardexCronologico(novosProdutos, store.documentos, store.dePara)
+    const resultado = reprocessarKardexCronologico(
+      novosProdutos,
+      store.documentos,
+      store.dePara,
+      [],
+      store.regrasDesqualificacao,
+    )
 
     atualizarStore({
       produtos: novosProdutos,
@@ -940,6 +978,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       store.documentos,
       store.dePara,
       ajustesParaKardex,
+      store.regrasDesqualificacao,
     )
 
     const valorTotalEstoque = itensContagem.reduce(
@@ -1037,7 +1076,13 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (resultado.tipo === 'SUCESSO_DOC' && resultado.documentosNovos.length > 0) {
       // Importa documento retornado
       const todosDocs = [...store.documentos, ...resultado.documentosNovos]
-      const resKardex = reprocessarKardexCronologico(store.produtos, todosDocs, store.dePara)
+      const resKardex = reprocessarKardexCronologico(
+        store.produtos,
+        todosDocs,
+        store.dePara,
+        [],
+        store.regrasDesqualificacao,
+      )
 
       atualizarStore({
         consultasDFe: novasConsultas,
