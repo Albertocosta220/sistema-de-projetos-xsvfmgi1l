@@ -146,6 +146,7 @@ function FormLogin({
 }: {
   entrar: (login: string, senha: string) => Promise<{ ok: boolean; motivo?: string }>
 }) {
+  const navigate = useNavigate()
   const [login, setLogin] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
@@ -167,7 +168,13 @@ function FormLogin({
             ? 'Este usuário está desativado. Fale com o administrador.'
             : 'Usuário ou senha inválidos.',
         )
+      } else {
+        // Entra direto no Painel, sem depender de recarregar a página.
+        navigate('/', { replace: true })
       }
+    } catch (err) {
+      console.error('Falha ao verificar o login:', err)
+      setErro('Não foi possível verificar o login neste navegador. Tente novamente.')
     } finally {
       setEntrando(false)
     }
