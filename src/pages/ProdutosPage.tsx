@@ -36,11 +36,19 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { Produto } from '@/types/sigef'
+import { CNPJ_REGRA_CFOP_LEGADO } from '@/services/regrasCfopService'
+
+/** Regras CFOP legadas salvas como de-para não pertencem ao catálogo nem à tabela de de-para */
+const naoEhRegraCfop = (dp: { cProd: string; cnpjFornecedor: string }) =>
+  !(
+    dp.cProd.trim().toUpperCase().startsWith('CFOP-') &&
+    dp.cnpjFornecedor.replace(/\D/g, '') === CNPJ_REGRA_CFOP_LEGADO
+  )
 
 export default function ProdutosPage() {
   const {
     produtos,
-    deParaList,
+    deParaList: deParaListBruta,
     documentos,
     cadastrarProduto,
     editarProduto,
@@ -48,6 +56,8 @@ export default function ProdutosPage() {
     salvarDePara,
     excluirDePara,
   } = useSigef()
+
+  const deParaList = deParaListBruta.filter(naoEhRegraCfop)
 
   // Estado para Produto Modal
   const [modalProdutoOpen, setModalProdutoOpen] = useState(false)

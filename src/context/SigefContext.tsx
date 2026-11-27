@@ -11,7 +11,14 @@ import {
   MovimentoKardex,
   OcorrenciaAuditoria,
   Produto,
+  RegraCfop,
 } from '@/types/sigef'
+import {
+  carregarRegrasCfop,
+  migrarRegrasCfopLegadas,
+  novaRegraCfop,
+  salvarRegrasCfop,
+} from '@/services/regrasCfopService'
 import {
   carregarDadosEmpresa,
   carregarEmpresasCadastradas,
@@ -31,6 +38,9 @@ import { toast } from 'sonner'
 interface SigefContextType {
   // Empresa ativa
   empresas: Empresa[]
+  regrasCfop: RegraCfop[]
+  salvarRegraCfop: (dados: Omit<RegraCfop, 'id' | 'atualizadoEm'>, idExistente?: string) => void
+  excluirRegraCfop: (id: string) => void
   empresaAtiva: Empresa
   trocarEmpresaAtiva: (empresaId: string) => void
   cadastrarOuEditarEmpresa: (empresa: Empresa) => void
@@ -103,6 +113,28 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [historicoBackups, setHistoricoBackups] =
     useState<BackupHistorico[]>(carregarHistoricoBackups)
+
+  // Regras CFOP: entidade própria (fora do de-para de produtos)
+  const [regrasCfop, setRegrasCfop] = useState<RegraCfop[]>(carregarRegrasCfop)
+
+  // Migração one-shot: converte regras antigas salvas como DeParaVigente e limpa o de-para
+  useEffect(() => {
+    setStore((prev) => {
+      const { regras, deParaLimpo, migradas } = migrarRegrasCfopLegadas(regrasCfop, prev.dePara)
+      if (migradas === 0 && deParaLimpo === prev.dePara) return prev
+      if (migradas > 0) {
+        salvarRegrasCfop(regras)
+        setRegrasCfop(regras)
+      }
+      if (deParaLimpo !== prev.dePara) {
+        const atualizado = { ...prev, dePara: deParaLimpo }
+        salvarDadosEmpresa(atualizado)
+        return atualizado
+      }
+      return prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Ao trocar de empresa, carrega a store correspondente
   useEffect(() => {
@@ -211,6 +243,33 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const novosDePara = store.dePara.filter((dp) => dp.id !== id)
     recalcularKardex(store.produtos, store.documentos, novosDePara)
     toast.info('Vínculo De-Para removido. Kardex recalculado.')
+  }
+
+  // ============ Regras CFOP (entidade própria) ============
+
+  const salvarRegraCfop = (dados: Omit<RegraCfop, 'id' | 'atualizadoEm'>, idExistente?: string) => {
+    setRegrasCfop((prev) => {
+      let novas: RegraCfop[]
+      if (idExistente) {
+        novas = prev.map((r) =>
+          r.id === idExistente
+            ? { ...dados, id: idExistente, atualizadoEm: new Date().toISOString() }
+            : r,
+        )
+      } else {
+        novas = [...prev, novaRegraCfop(dados)]
+      }
+      salvarRegrasCfop(novas)
+      return novas
+    })
+  }
+
+  const excluirRegraCfop = (id: string) => {
+    setRegrasCfop((prev) => {
+      const novas = prev.filter((r) => r.id !== id)
+      salvarRegrasCfop(novas)
+      return novas
+    })
   }
 
   // Importar XMLs em lote (colados ou pastas)
@@ -526,6 +585,9 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       value={{
         empresas,
         empresaAtiva,
+        regrasCfop,
+        salvarRegraCfop,
+        excluirRegraCfop,
         trocarEmpresaAtiva,
         cadastrarOuEditarEmpresa,
         produtos: store.produtos,

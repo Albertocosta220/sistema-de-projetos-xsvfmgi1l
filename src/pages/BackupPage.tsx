@@ -109,11 +109,13 @@ export default function BackupPage() {
               <caption className="sr-only">Histórico de backups registrados</caption>
               <thead>
                 <tr>
-                  <th>Versão</th>
-                  <th>Data / hora</th>
-                  <th>Descrição</th>
-                  <th className="num">Tamanho</th>
-                  <th>Ação</th>
+                  <th scope="col">Versão</th>
+                  <th scope="col">Data / hora</th>
+                  <th scope="col">Descrição</th>
+                  <th scope="col" className="num">
+                    Tamanho
+                  </th>
+                  <th scope="col">Ação</th>
                 </tr>
               </thead>
               <tbody>

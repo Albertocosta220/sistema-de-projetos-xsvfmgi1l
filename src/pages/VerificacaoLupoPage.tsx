@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSigef } from '@/context/SigefContext'
-import { PageHead, CardS, Pill, KpiB, num, brl } from '@/components/shell'
+import { PageHead, CardS, Pill, KpiB, num, brl, dataHoraBR } from '@/components/shell'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 
@@ -108,24 +108,25 @@ export default function VerificacaoLupoPage() {
         ) : (
           <div className="overflow-x-auto">
             <table>
-              <caption className="sr-only">Resultados da bateria de verificações</caption>
+              <caption className="sr-only">
+                Resultados da bateria de verificações executada em{' '}
+                {resultados && ultimaExecucao ? dataHoraBR(ultimaExecucao) : 'agora'}
+              </caption>
               <thead>
                 <tr>
-                  <th>Verificação</th>
-                  <th>Result</th>
-                  <th>Detalhe</th>
+                  <th scope="col">Verificação</th>
+                  <th scope="col">Result</th>
+                  <th scope="col">Detalhe</th>
                 </tr>
               </thead>
               <tbody>
                 {resultados.map((r) => (
                   <tr key={r.id}>
                     <td>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-[var(--petroleo)]">
-                          {r.codigo} — {r.titulo}
-                        </span>
-                        <span className="text-xs text-[var(--sig-muted)]">{r.descricao}</span>
-                      </div>
+                      <span className="block font-semibold text-[var(--petroleo)]">
+                        {r.codigo} — {r.titulo}
+                      </span>
+                      <span className="block text-xs text-[var(--sig-muted)]">{r.descricao}</span>
                     </td>
                     <td>
                       <Pill

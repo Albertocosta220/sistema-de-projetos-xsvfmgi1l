@@ -42,6 +42,17 @@ export interface DeParaVigente {
   atualizadoEm: string
 }
 
+export interface RegraCfop {
+  id: string
+  cfop: string // 4 dígitos
+  naturezaMovimento: string
+  descricao: string
+  tipoOperacao: 'ENTRADA' | 'SAIDA'
+  gerarBlocoK: boolean
+  ativa: boolean
+  atualizadoEm: string
+}
+
 export type StatusDocumento =
   | 'PENDENTE'
   | 'PROCESSADO'

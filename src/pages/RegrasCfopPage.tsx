@@ -22,49 +22,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toast } from 'sonner'
-import type { DeParaVigente } from '@/types/sigef'
+import type { RegraCfop } from '@/types/sigef'
 
-/**
- * Regra CFOP — natureza fiscal por código CFOP. Reaproveita o modelo
- * DeParaVigente (persistência via salvarDePara) para não alterar o contexto
- * nem a lógica fiscal existente (Kardex, SPED, inventário).
- */
-type RegraCfop = {
-  id: string
-  cfop: string
-  naturezaMovimento: string
-  descricao: string
-  tipoOperacao: 'ENTRADA' | 'SAIDA'
-  gerarBlocoK: boolean
-  ativa: boolean
-}
-
-const EMPRESA_PROPRIA = '00000000000000' // regras próprias do contribuinte (não é vínculo de fornecedor)
-
-function paraDeParaVigente(r: RegraCfop): Omit<DeParaVigente, 'id' | 'atualizadoEm'> {
-  return {
-    cnpjFornecedor: EMPRESA_PROPRIA,
-    razaoSocialFornecedor: 'Regra fiscal interna',
-    cProd: `CFOP-${r.cfop}`,
-    xProd: r.descricao || r.naturezaMovimento,
-    uCom: r.tipoOperacao === 'ENTRADA' ? 'ENT' : 'SAI',
-    fatorConversao: 1,
-    codigoInventario: r.naturezaMovimento,
-  }
-}
-
-function deRegraDePara(dp: DeParaVigente): RegraCfop {
-  const cfop = dp.cProd.replace(/^CFOP-/, '')
-  return {
-    id: dp.id,
-    cfop,
-    naturezaMovimento: dp.codigoInventario,
-    descricao: dp.xProd,
-    tipoOperacao: dp.uCom === 'ENT' ? 'ENTRADA' : 'SAIDA',
-    gerarBlocoK: dp.fatorConversao === 1,
-    ativa: dp.razaoSocialFornecedor === 'Regra fiscal interna',
-  }
-}
+type FormRegra = Omit<RegraCfop, 'id' | 'atualizadoEm'>
 
 const CFOP_SUGERIDOS = [
   {
@@ -105,8 +65,7 @@ const CFOP_SUGERIDOS = [
   },
 ]
 
-const padraoRegra = (): RegraCfop => ({
-  id: '',
+const padraoRegra = (): FormRegra => ({
   cfop: '',
   naturezaMovimento: '',
   descricao: '',
@@ -116,28 +75,33 @@ const padraoRegra = (): RegraCfop => ({
 })
 
 export default function RegrasCfopPage() {
-  const { deParaList, salvarDePara, excluirDePara } = useSigef()
-
-  const regrasCfop = useMemo(
-    () => deParaList.filter((dp) => dp.cProd.startsWith('CFOP-')),
-    [deParaList],
-  )
+  const { regrasCfop, salvarRegraCfop, excluirRegraCfop } = useSigef()
 
   const [dialogo, setDialogo] = useState(false)
-  const [form, setForm] = useState<RegraCfop>(padraoRegra())
+  const [form, setForm] = useState<FormRegra>(padraoRegra())
+  const [idEditando, setIdEditando] = useState<string | undefined>(undefined)
 
   const ordenadas = useMemo(
-    () => regrasCfop.map(deRegraDePara).sort((a, b) => a.cfop.localeCompare(b.cfop)),
+    () => [...regrasCfop].sort((a, b) => a.cfop.localeCompare(b.cfop)),
     [regrasCfop],
   )
 
   const abrirNova = () => {
     setForm(padraoRegra())
+    setIdEditando(undefined)
     setDialogo(true)
   }
 
   const abrirEdicao = (r: RegraCfop) => {
-    setForm({ ...r })
+    setForm({
+      cfop: r.cfop,
+      naturezaMovimento: r.naturezaMovimento,
+      descricao: r.descricao,
+      tipoOperacao: r.tipoOperacao,
+      gerarBlocoK: r.gerarBlocoK,
+      ativa: r.ativa,
+    })
+    setIdEditando(r.id)
     setDialogo(true)
   }
 
@@ -151,16 +115,12 @@ export default function RegrasCfopPage() {
       toast.error('Informe a natureza de movimento.')
       return
     }
-    const existente = regrasCfop.find((dp) => dp.cProd === `CFOP-${cfopLimpo}`)
-    if (existente && existente.id !== form.id) {
+    const existente = regrasCfop.find((r) => r.cfop === cfopLimpo)
+    if (existente && existente.id !== idEditando) {
       toast.error(`Já existe uma regra para o CFOP ${cfopLimpo}.`)
       return
     }
-    if (form.id) {
-      // Edição: remove e recria via salvarDePara (que substitui por CNPJ + cProd)
-      excluirDePara(form.id)
-    }
-    salvarDePara(paraDeParaVigente({ ...form, cfop: cfopLimpo }))
+    salvarRegraCfop({ ...form, cfop: cfopLimpo }, idEditando)
     toast.success(`Regra CFOP ${cfopLimpo} salva.`)
     setDialogo(false)
   }
@@ -231,7 +191,7 @@ export default function RegrasCfopPage() {
                           size="sm"
                           className="text-rose-600 hover:bg-rose-50"
                           onClick={() => {
-                            excluirDePara(r.id)
+                            excluirRegraCfop(r.id)
                             toast.success('Regra removida.')
                           }}
                         >
@@ -263,8 +223,9 @@ export default function RegrasCfopPage() {
                   cfop: s.cfop,
                   naturezaMovimento: s.natureza,
                   descricao: s.descricao,
-                  tipoOperacao: s.tipoOperacao as RegraCfop['tipoOperacao'],
+                  tipoOperacao: s.tipoOperacao as FormRegra['tipoOperacao'],
                 })
+                setIdEditando(undefined)
                 setDialogo(true)
               }}
             >
@@ -277,7 +238,7 @@ export default function RegrasCfopPage() {
       <Dialog open={dialogo} onOpenChange={setDialogo}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{form.id ? 'Editar regra CFOP' : 'Nova regra CFOP'}</DialogTitle>
+            <DialogTitle>{idEditando ? 'Editar regra CFOP' : 'Nova regra CFOP'}</DialogTitle>
             <DialogDescription>
               Natureza de movimento, operação e participação no Bloco K.
             </DialogDescription>
@@ -303,7 +264,7 @@ export default function RegrasCfopPage() {
                   className="sig-input"
                   value={form.tipoOperacao}
                   onChange={(e) =>
-                    setForm({ ...form, tipoOperacao: e.target.value as RegraCfop['tipoOperacao'] })
+                    setForm({ ...form, tipoOperacao: e.target.value as FormRegra['tipoOperacao'] })
                   }
                 >
                   <option value="ENTRADA">Entrada</option>

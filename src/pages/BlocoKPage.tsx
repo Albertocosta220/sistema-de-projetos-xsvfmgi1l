@@ -110,14 +110,21 @@ export default function BlocoKPage() {
       >
         <div className="overflow-x-auto">
           <table>
+            <caption className="sr-only">Registros K200 por código de inventário</caption>
             <thead>
               <tr>
-                <th>Código</th>
-                <th>Descrição</th>
-                <th>Un.</th>
-                <th className="text-right">Qtd. Kardex</th>
-                <th className="text-right">Qtd. Bloco H</th>
-                <th className="text-right">Valor total</th>
+                <th scope="col">Código</th>
+                <th scope="col">Descrição</th>
+                <th scope="col">Un.</th>
+                <th scope="col" className="text-right">
+                  Qtd. Kardex
+                </th>
+                <th scope="col" className="text-right">
+                  Qtd. Bloco H
+                </th>
+                <th scope="col" className="text-right">
+                  Valor total
+                </th>
               </tr>
             </thead>
             <tbody>
