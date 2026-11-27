@@ -55,9 +55,16 @@ export interface ResultadoBlocoC {
 
 /**
  * Monta os registros C100/C170 do Bloco C a partir dos documentos
- * fiscais processados da empresa ativa, coerentes com os dados que
- * alimentam o Kardex (quantidade já convertida pelo fator do de-para e
- * valores líquidos dos tributos deduzidos no custo).
+ * fiscais processados e cancelados da empresa ativa, coerentes com os
+ * dados que alimentam o Kardex (quantidade já convertida pelo fator do
+ * de-para e valores líquidos dos tributos deduzidos no custo).
+ *
+ * - PROCESSADO: C100 com COD_SIT "00" (regular) e seus itens C170.
+ * - CANCELADO:  C100 com COD_SIT "02" (NF-e cancelada) e SEM itens C170,
+ *   pois o cancelamento já estornou os saldos no Kardex — o registro
+ *   existe apenas para comunicar a situação ao fisco.
+ * - Demais status (AGUARDANDO_DE_PARA, ERRO, DUPLICIDADE, PENDENTE)
+ *   permanecem fora do Bloco C.
  */
 export function montarBlocoC(params: {
   empresa: Empresa
@@ -78,7 +85,7 @@ export function montarBlocoC(params: {
   const docsProcessados = documentos
     .filter(
       (d) =>
-        d.status === 'PROCESSADO' &&
+        (d.status === 'PROCESSADO' || d.status === 'CANCELADO') &&
         !docIdsJaLancados.has(d.id) &&
         new Date(d.dataEmissao) >= dtIni &&
         new Date(d.dataEmissao) <= dtFin,
@@ -102,9 +109,14 @@ export function montarBlocoC(params: {
       doc.tipoOperacao === 'SAIDA' ? doc.cnpjDestinatario : doc.cnpjEmitente
     ).replace(/\D/g, '')
 
-    const itensC170: ItemSpedC170[] = doc.itens.map((item) =>
-      montarItemC170(item, produtos, doc.tipoOperacao === 'ENTRADA'),
-    )
+    const isCancelado = doc.status === 'CANCELADO'
+
+    // Nota cancelada: apenas o C100 com COD_SIT 02, SEM itens C170 —
+    // o cancelamento já estornou os saldos no Kardex, e valores de item
+    // gerariam crédito/saída que não existem mais.
+    const itensC170: ItemSpedC170[] = isCancelado
+      ? []
+      : doc.itens.map((item) => montarItemC170(item, produtos, doc.tipoOperacao === 'ENTRADA'))
 
     const vlMerc = doc.itens.reduce((s, it) => s + it.vProd, 0)
     const vlBcIcms = itensC170.reduce((s, it) => s + it.vlBcIcms, 0)
@@ -117,7 +129,7 @@ export function montarBlocoC(params: {
       indEmit,
       codPart,
       codMod: '55',
-      codSit: '00',
+      codSit: isCancelado ? '02' : '00',
       ser: doc.serie,
       numDoc: doc.numero,
       chvNfe: doc.chaveAcesso,

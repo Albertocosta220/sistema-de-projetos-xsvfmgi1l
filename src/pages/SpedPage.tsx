@@ -198,8 +198,9 @@ export default function SpedPage() {
                     Notas Fiscais — Registros C100 e C170
                   </CardTitle>
                   <CardDescription className="text-xs mt-1">
-                    Documentos fiscais processados da empresa ativa, na ordem do leiaute oficial
-                    (cabeçalho C100 seguido dos itens C170)
+                    Documentos fiscais processados e cancelados da empresa ativa, na ordem do
+                    leiaute oficial (cabeçalho C100 seguido dos itens C170; notas canceladas não
+                    geram itens)
                   </CardDescription>
                 </div>
                 <div className="text-right font-bold text-blue-800 text-sm">
@@ -219,6 +220,7 @@ export default function SpedPage() {
                       <TableRow className="text-xs">
                         <TableHead>Registro</TableHead>
                         <TableHead>Operação</TableHead>
+                        <TableHead>Situação</TableHead>
                         <TableHead>Nº / Série</TableHead>
                         <TableHead>Participante (CNPJ)</TableHead>
                         <TableHead>Chave de Acesso</TableHead>
@@ -233,10 +235,29 @@ export default function SpedPage() {
                     <TableBody>
                       {blocoC.registros.flatMap((reg) => (
                         <React.Fragment key={`${reg.numDoc}-${reg.ser}`}>
-                          <TableRow className="bg-slate-50 text-xs font-bold">
+                          <TableRow
+                            className={
+                              reg.codSit === '02'
+                                ? 'bg-red-50 text-xs font-bold'
+                                : 'bg-slate-50 text-xs font-bold'
+                            }
+                          >
                             <TableCell className="font-mono text-blue-800">|C100|</TableCell>
                             <TableCell>
                               {reg.indOper === '0' ? '0 - Entrada' : '1 - Saída'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                className={
+                                  reg.codSit === '02'
+                                    ? 'bg-red-600 text-white text-[10px]'
+                                    : 'bg-emerald-600 text-white text-[10px]'
+                                }
+                              >
+                                {reg.codSit === '02'
+                                  ? 'Cancelada · COD_SIT 02'
+                                  : 'Regular · COD_SIT 00'}
+                              </Badge>
                             </TableCell>
                             <TableCell className="font-mono">
                               {reg.numDoc} / {reg.ser}
@@ -274,7 +295,7 @@ export default function SpedPage() {
                               className="text-xs font-medium"
                             >
                               <TableCell className="font-mono pl-6 text-blue-700">|C170|</TableCell>
-                              <TableCell colSpan={4} className="max-w-[280px] truncate">
+                              <TableCell colSpan={5} className="max-w-[280px] truncate">
                                 {it.descrCompl}
                               </TableCell>
                               <TableCell className="font-mono font-bold text-blue-700">
@@ -299,6 +320,15 @@ export default function SpedPage() {
                               </TableCell>
                             </TableRow>
                           ))}
+                          {reg.codSit === '02' && (
+                            <TableRow className="text-xs">
+                              <TableCell className="font-mono text-red-700">—</TableCell>
+                              <TableCell colSpan={10} className="text-red-700 italic">
+                                NF-e cancelada (COD_SIT 02): sem itens C170 — valores já estornados
+                                no Kardex
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </React.Fragment>
                       ))}
                     </TableBody>
