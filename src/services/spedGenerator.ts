@@ -1,9 +1,11 @@
 import { CompetenciaFechamento, Empresa, MovimentoKardex, Produto } from '@/types/sigef'
+import { DocSpedC100, montarBlocoC } from '@/services/spedBlocoC'
 
 /**
  * Gerador do arquivo oficial SPED Fiscal (EFD-ICMS/IPI)
  * Leiaute oficial com Blocos:
  * - Bloco 0: Abertura, identificação da empresa (0000, 0001, 0005, 0100, 0150, 0190, 0200, 0990)
+ * - Bloco C: Notas Fiscais (C100, C170, C990) — NF-e de entrada e de saída
  * - Bloco H: Inventário Físico (H001, H005, H010, H990)
  * - Bloco K: Controle da Produção e do Estoque (K001, K010, K200, K990)
  * - Bloco 9: Encerramento e totalizadores (9001, 9900, 9990, 9999)
@@ -21,14 +23,78 @@ function formatarNumeroSped(valor: number, decimais: number = 2): string {
   return valor.toFixed(decimais).replace('.', ',')
 }
 
+/** Converte os registros do Bloco C em linhas de campos do arquivo TXT */
+function linhasDoBlocoC(registros: DocSpedC100[]): (string | number)[][] {
+  const linhas: (string | number)[][] = []
+  registros.forEach((reg) => {
+    linhas.push([
+      'C100',
+      reg.indOper,
+      reg.indEmit,
+      reg.codPart,
+      reg.codMod,
+      '55', // COD_VER: NF-e modelo 55
+      reg.codSit,
+      reg.ser,
+      reg.numDoc,
+      reg.chvNfe,
+      reg.dtDoc,
+      reg.dtES,
+      formatarNumeroSped(reg.vlDoc),
+      reg.indPgto,
+      formatarNumeroSped(reg.vlMerc),
+      reg.indFrt,
+      formatarNumeroSped(reg.vlFrt),
+      formatarNumeroSped(reg.vlSeg),
+      formatarNumeroSped(reg.vlOutDa),
+      formatarNumeroSped(reg.vlBcIcms),
+      formatarNumeroSped(reg.vlIcms),
+      formatarNumeroSped(reg.vlIpi),
+      '0', // VL_BC_ST
+      '0', // VL_ST
+      '0', // VL_PIS
+      '0', // VL_COFINS
+      '', // VL_PIS_ST
+      '', // VL_COFINS_ST
+    ])
+    reg.itens.forEach((it) => {
+      linhas.push([
+        'C170',
+        String(it.nItem), // NUM_ITEM
+        it.codItem, // COD_ITEM (código de inventário do de-para)
+        it.descrCompl, // DESCR_COMPL
+        it.ncm, // NCM do item
+        it.cstIcms, // CST_ICMS
+        it.cfop, // CFOP
+        formatarNumeroSped(it.qtd, 6), // QTD (já convertida pelo fator do de-para)
+        it.unid, // UNID (unidade de inventário)
+        formatarNumeroSped(it.vlItem), // VL_ITEM (líquido dos tributos deduzidos)
+        formatarNumeroSped(0), // VL_DESC
+        '0', // IND_MOV
+        formatarNumeroSped(it.vlBcIcms), // VL_BC_ICMS
+        formatarNumeroSped(it.aliqIcms), // ALIQ_ICMS
+        formatarNumeroSped(it.vlIcms), // VL_ICMS
+        '', // VL_BC_ICMS_ST
+        '', // VL_ICMS_ST
+        '', // VL_BC_IPI
+        formatarNumeroSped(it.vlIpi), // VL_IPI
+        '', // CST_IPI
+        '', // COD_ENQ
+      ])
+    })
+  })
+  return linhas
+}
+
 export function gerarSpedTxt(params: {
   empresa: Empresa
   competencia: string // YYYY-MM
   produtos: Produto[]
   kardex: MovimentoKardex[]
+  documentos?: Parameters<typeof montarBlocoC>[0]['documentos']
   fechamento?: CompetenciaFechamento
 }): string {
-  const { empresa, competencia, produtos, kardex, fechamento } = params
+  const { empresa, competencia, produtos, kardex, documentos, fechamento } = params
 
   const [anoStr, mesStr] = competencia.split('-')
   const ano = parseInt(anoStr, 10)
@@ -125,8 +191,19 @@ export function gerarSpedTxt(params: {
     ])
   })
 
-  // Fechamento Bloco 0 (0990)
-  adicionarLinha(['0990', (contagemRegistros['0000'] || 1) + 1]) // Será recalculado no final
+  // Fechamento Bloco 0 (0990): contagem será recalculada ao final
+  adicionarLinha(['0990', 0])
+
+  // ==========================================
+  // BLOCO C - NOTAS FISCAIS (C100 / C170)
+  // ==========================================
+  const blocoC = montarBlocoC({ empresa, competencia, produtos, documentos: documentos || [] })
+
+  adicionarLinha(['C001', '0']) // Abertura Bloco C com movimento
+
+  linhasDoBlocoC(blocoC.registros).forEach((campos) => adicionarLinha(campos))
+
+  adicionarLinha(['C990', 0]) // Contagem preenchida ao final
 
   // ==========================================
   // BLOCO H - INVENTÁRIO FÍSICO
@@ -220,6 +297,23 @@ export function gerarSpedTxt(params: {
   // BLOCO 9 - CONTROLE E ENCERRAMENTO
   // ==========================================
   adicionarLinha(['9001', '0'])
+
+  // Recalcula as contagens de fechamento de cada bloco (0990, C990)
+  const qtdBloco0 =
+    (contagemRegistros['0001'] || 0) +
+    (contagemRegistros['0005'] || 0) +
+    (contagemRegistros['0100'] || 0) +
+    (contagemRegistros['0190'] || 0) +
+    (contagemRegistros['0200'] || 0)
+  const idxLinha0990 = linhas.findIndex((l) => l.startsWith('|0990|'))
+  if (idxLinha0990 >= 0) {
+    linhas[idxLinha0990] = `|0990|${qtdBloco0}|`
+  }
+  const qtdBlocoC = (contagemRegistros['C100'] || 0) + (contagemRegistros['C170'] || 0)
+  const idxLinhaC990 = linhas.findIndex((l) => l.startsWith('|C990|'))
+  if (idxLinhaC990 >= 0) {
+    linhas[idxLinhaC990] = `|C990|${qtdBlocoC}|`
+  }
 
   // Recalcular contagem exata e montar 9900
   // Lista de todos os registros gerados até aqui

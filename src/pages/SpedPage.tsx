@@ -22,10 +22,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { gerarSpedTxt } from '@/services/spedGenerator'
+import { montarBlocoC } from '@/services/spedBlocoC'
 import { toast } from 'sonner'
 
 export default function SpedPage() {
-  const { empresaAtiva, produtos, kardex, fechamentos } = useSigef()
+  const { empresaAtiva, produtos, kardex, fechamentos, documentos } = useSigef()
 
   const [competencia, setCompetencia] = useState('2025-01')
 
@@ -38,9 +39,10 @@ export default function SpedPage() {
       competencia,
       produtos,
       kardex,
+      documentos,
       fechamento: fechamentoAtual,
     })
-  }, [empresaAtiva, competencia, produtos, kardex, fechamentoAtual])
+  }, [empresaAtiva, competencia, produtos, kardex, documentos, fechamentoAtual])
 
   // Download do arquivo TXT
   const baixarArquivoSped = () => {
@@ -53,13 +55,19 @@ export default function SpedPage() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success('Arquivo SPED EFD-ICMS/IPI (Blocos 0, H e K) baixado com sucesso!')
+    toast.success('Arquivo SPED EFD-ICMS/IPI (Blocos 0, C, H e K) baixado com sucesso!')
   }
 
   const copiarTxtParaClipboard = () => {
     navigator.clipboard.writeText(arquivoSpedTxt)
     toast.success('Conteúdo do arquivo SPED copiado para a área de transferência!')
   }
+
+  // Registros do Bloco C (C100/C170) para a prévia
+  const blocoC = useMemo(
+    () => montarBlocoC({ empresa: empresaAtiva, competencia, produtos, documentos }),
+    [empresaAtiva, competencia, produtos, documentos],
+  )
 
   // Registros K200 para a prévia
   const itensK200 = produtos.map((p) => {
@@ -102,11 +110,11 @@ export default function SpedPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            SPED Fiscal — Blocos 0, H e K
+            SPED Fiscal — Blocos 0, C, H e K
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Geração oficial do leiaute EFD-ICMS/IPI: Bloco 0 (Cadastros), Bloco H (Inventário
-            Físico) e Bloco K (K010/K200 Controle de Estoque)
+            Geração oficial do leiaute EFD-ICMS/IPI: Bloco 0 (Cadastros), Bloco C (C100/C170 Notas
+            Fiscais), Bloco H (Inventário Físico) e Bloco K (K010/K200 Controle de Estoque)
           </p>
         </div>
 
@@ -170,7 +178,7 @@ export default function SpedPage() {
         <TabsList className="bg-slate-200/80 p-1">
           <TabsTrigger value="preview-blocos" className="text-xs flex items-center gap-1.5">
             <FileSpreadsheet className="size-3.5" />
-            <span>Prévia dos Registros (Blocos H e K)</span>
+            <span>Prévia dos Registros (Blocos 0, C, H e K)</span>
           </TabsTrigger>
           <TabsTrigger value="txt-completo" className="text-xs flex items-center gap-1.5">
             <FileCode className="size-3.5" />
@@ -180,6 +188,126 @@ export default function SpedPage() {
 
         {/* TAB 1: Prévia em Tabelas dos Blocos */}
         <TabsContent value="preview-blocos" className="space-y-6">
+          {/* Bloco C - Notas Fiscais (C100 e C170) */}
+          <Card className="border-slate-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <Badge className="bg-blue-800 text-white text-[10px]">BLOCO C</Badge>
+                    Notas Fiscais — Registros C100 e C170
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-1">
+                    Documentos fiscais processados da empresa ativa, na ordem do leiaute oficial
+                    (cabeçalho C100 seguido dos itens C170)
+                  </CardDescription>
+                </div>
+                <div className="text-right font-bold text-blue-800 text-sm">
+                  {blocoC.totalC100} C100 · {blocoC.totalC170} C170
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {blocoC.registros.length === 0 ? (
+                <p className="text-xs text-slate-500" role="status">
+                  Nenhum documento fiscal processado na competência selecionada.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead>Registro</TableHead>
+                        <TableHead>Operação</TableHead>
+                        <TableHead>Nº / Série</TableHead>
+                        <TableHead>Participante (CNPJ)</TableHead>
+                        <TableHead>Chave de Acesso</TableHead>
+                        <TableHead>Item (COD_ITEM)</TableHead>
+                        <TableHead className="text-right">Qtd (convertida)</TableHead>
+                        <TableHead className="text-right">Valor do Item</TableHead>
+                        <TableHead>CFOP</TableHead>
+                        <TableHead>NCM</TableHead>
+                        <TableHead className="text-right">VL ICMS</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {blocoC.registros.flatMap((reg) => (
+                        <React.Fragment key={`${reg.numDoc}-${reg.ser}`}>
+                          <TableRow className="bg-slate-50 text-xs font-bold">
+                            <TableCell className="font-mono text-blue-800">|C100|</TableCell>
+                            <TableCell>
+                              {reg.indOper === '0' ? '0 - Entrada' : '1 - Saída'}
+                            </TableCell>
+                            <TableCell className="font-mono">
+                              {reg.numDoc} / {reg.ser}
+                            </TableCell>
+                            <TableCell className="font-mono">{reg.codPart}</TableCell>
+                            <TableCell className="font-mono max-w-[180px] truncate">
+                              {reg.chvNfe}
+                            </TableCell>
+                            <TableCell colSpan={6} className="text-slate-500 font-normal">
+                              VL_DOC:{' '}
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(reg.vlDoc)}{' '}
+                              · VL_BC_ICMS:{' '}
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(reg.vlBcIcms)}{' '}
+                              · VL_ICMS:{' '}
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(reg.vlIcms)}{' '}
+                              · VL_IPI:{' '}
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(reg.vlIpi)}
+                            </TableCell>
+                          </TableRow>
+                          {reg.itens.map((it) => (
+                            <TableRow
+                              key={`${reg.numDoc}-${reg.ser}-${it.nItem}`}
+                              className="text-xs font-medium"
+                            >
+                              <TableCell className="font-mono pl-6 text-blue-700">|C170|</TableCell>
+                              <TableCell colSpan={4} className="max-w-[280px] truncate">
+                                {it.descrCompl}
+                              </TableCell>
+                              <TableCell className="font-mono font-bold text-blue-700">
+                                {it.codItem}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {it.qtd.toFixed(3)} {it.unid}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {new Intl.NumberFormat('pt-BR', {
+                                  style: 'currency',
+                                  currency: 'BRL',
+                                }).format(it.vlItem)}
+                              </TableCell>
+                              <TableCell className="font-mono">{it.cfop}</TableCell>
+                              <TableCell className="font-mono">{it.ncm}</TableCell>
+                              <TableCell className="text-right font-mono">
+                                {new Intl.NumberFormat('pt-BR', {
+                                  style: 'currency',
+                                  currency: 'BRL',
+                                }).format(it.vlIcms)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </React.Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Bloco K - Controle de Estoque (K010 e K200) */}
           <Card className="border-slate-200">
             <CardHeader className="pb-3">
