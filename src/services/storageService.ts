@@ -68,53 +68,34 @@ export function carregarDadosEmpresa(empresa: Empresa | undefined): DadosEmpresa
   return vazia
 }
 
+/**
+ * Marcador gravado no lugar do XML bruto persistido. O parse da NF-e já extraiu
+ * itens, emitente, destinatário, valores e chave de acesso — nada no app usa o
+ * XML inteiro do storage — então ele NÃO vai para o localStorage: um XML de
+ * ~200 KB viraria a causa nº 1 de estouro de cota (~5 MB) e a importação
+ * "sumiria" ao sair do sistema (setItem falhando em silêncio).
+ */
+export const MARCADOR_XML_COMPACTADO = '<!--XML_COMPACTADO_QUOTA-->'
+
 export function salvarDadosEmpresa(dados: DadosEmpresaStore): void {
   if (!dados?.empresa?.id) return
   const chave = `${KEY_PREFIX_STORE}${dados.empresa.id}`
+  // Persiste SEM o XML bruto: cada documento mantém todos os campos estruturados
+  // (itens, emitente, valores, status) e apenas o marcador no xmlOriginal. A
+  // escrituração completa — documentos, kardex, de-para, regras CFOP, fechamentos
+  // e competência ativa — continua gravada por empresa.
+  const persistido: DadosEmpresaStore = {
+    ...dados,
+    documentos: dados.documentos.map((d) => ({ ...d, xmlOriginal: MARCADOR_XML_COMPACTADO })),
+  }
   try {
-    localStorage.setItem(chave, JSON.stringify(dados))
+    localStorage.setItem(chave, JSON.stringify(persistido))
   } catch (e) {
     console.error(`Erro ao salvar dados da empresa ${dados.empresa.id}:`, e)
-    // Causa mais comum: QuotaExceededError (XMLs completos estouram os ~5 MB do
-    // localStorage). Sem este fallback, o setItem falha e os dados NUNCA ficam
-    // gravados — o usuário importa, sai do sistema e a fila "some" ao voltar.
-    // Ajuste: o XML completo não é usado por nenhuma tela (o parse já extraiu
-    // itens, emitente, valores); mantemos um recorte do XML por documento para
-    // caber na cota. Bloco 0/C usa apenas os campos estruturados do DocumentoFiscal.
-    try {
-      const enxuto: DadosEmpresaStore = {
-        ...dados,
-        documentos: dados.documentos.map((d) => ({
-          ...d,
-          xmlOriginal: recortarXmlParaStorage(d.xmlOriginal),
-        })),
-      }
-      localStorage.setItem(chave, JSON.stringify(enxuto))
-      console.warn(
-        `Cota do localStorage estourada: XMLs da empresa ${dados.empresa.id} foram compactados para manter a escrituração gravada.`,
-      )
-    } catch (e2) {
-      console.error('Falha ao gravar store compactado no localStorage:', e2)
-    }
+    console.warn(
+      `Cota do localStorage estourada mesmo sem XMLs brutos: verifique o volume de lançamentos da empresa ${dados.empresa.id}.`,
+    )
   }
-}
-
-/** Reduz o XML original preservando a tag nfeProc/NFe essencial (corte a ~20 KB). */
-function recortarXmlParaStorage(xml: string): string {
-  if (!xml || xml.length <= 20_000) return xml
-  const assinatura = xml.indexOf('</Signature>')
-  if (assinatura > 0) {
-    const inicioProtocolo = xml.indexOf('< prot', assinatura) // tentativa; protocolo entra se couber
-    const fimNFe = xml.indexOf('</NFe>', assinatura)
-    const corte =
-      inicioProtocolo > 0
-        ? Math.max(inicioProtocolo, assinatura + '</Signature>'.length)
-        : assinatura + '</Signature>'.length
-    if (fimNFe > corte) {
-      return `${xml.slice(0, corte)}<!--XML_COMPACTADO_QUOTA-->${xml.slice(fimNFe)}`
-    }
-  }
-  return `${xml.slice(0, 20_000)}<!--XML_COMPACTADO_QUOTA-->`
 }
 
 export function carregarHistoricoBackups(): BackupHistorico[] {
