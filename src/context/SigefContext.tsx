@@ -36,6 +36,7 @@ import { consultarDFeSimulado } from '@/services/sefazDfeSimulator'
 import { useAuth } from '@/context/AuthContext'
 import { REGUAS_AUDITORIA } from '@/data/regrasAuditoria'
 import { coletarParesUnicos, montarVinculosAutomaticos } from '@/services/vinculoAutomaticoService'
+import { certificadoAtivo, formatarCnpj, CertificadoA1 } from '@/services/certificadoService'
 import { toast } from 'sonner'
 
 interface SigefContextType {
@@ -99,9 +100,15 @@ interface SigefContextType {
   // Ações de Auditoria
   reprocessarOcorrencia: (ocorrenciaId: string) => void
   resolverOcorrenciaManual: (ocorrenciaId: string) => void
+  /** Grava uma ocorrência adicional na empresa ativa (régua A13 — operações administrativas). */
+  adicionarOcorrenciaAuditoria: (ocorrencia: OcorrenciaAuditoria) => void
 
   // Ações SEFAZ DF-e
   executarConsultaDFe: (uf: string, forcarConsumoIndevido?: boolean) => void
+  /** Certificado A1 ativo (instalado e não vencido) ou null. Consultas DF-e exigem. */
+  certificadoDFe: CertificadoA1 | null
+  /** Motivo do bloqueio da consulta sem certificado (mensagem para a tela). */
+  bloqueioConsultaDFe: string | null
 
   // Backup e Restauração
   historicoBackups: BackupHistorico[]
@@ -712,13 +719,33 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     toast.success('Ocorrência de auditoria marcada como resolvida.')
   }
 
-  // SEFAZ DF-e
+  const adicionarOcorrenciaAuditoria = (ocorrencia: OcorrenciaAuditoria) => {
+    atualizarStore({ ocorrencias: [ocorrencia, ...store.ocorrencias] })
+  }
+
+  // SEFAZ DF-e — exige certificado A1 ativo (instalado e não vencido);
+  // a consulta simulada registra qual certificado foi usado na operação.
+  const certificadoDFe = certificadoAtivo()
+  const bloqueioConsultaDFe = certificadoDFe
+    ? null
+    : 'Certificado digital A1 necessário para consultar. Instale um certificado A1 (.pfx) na tela Sistema → Certificado Digital.'
+
   const executarConsultaDFe = (uf: string, forcarConsumoIndevido?: boolean) => {
+    if (bloqueioConsultaDFe) {
+      toast.error(bloqueioConsultaDFe)
+      return
+    }
+    const cert = certificadoDFe as CertificadoA1
     const resultado = consultarDFeSimulado({
       empresa: empresaAtiva,
       uf,
       ultimoNSUAtual: store.ultimoNSU,
       forcarConsumoIndevido,
+      certificadoUsado: {
+        subjectCN: cert.subjectCN,
+        cnpj: cert.cnpj,
+        vencido: cert.vencido,
+      },
     })
 
     const novasConsultas = [resultado.consulta, ...store.consultasDFe]
@@ -844,7 +871,10 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         fecharCompetencia,
         reprocessarOcorrencia,
         resolverOcorrenciaManual,
+        adicionarOcorrenciaAuditoria,
         executarConsultaDFe,
+        certificadoDFe,
+        bloqueioConsultaDFe,
         historicoBackups,
         exportarBackupJson,
         importarBackupJson,

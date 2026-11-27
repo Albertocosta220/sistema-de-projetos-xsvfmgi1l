@@ -1,15 +1,14 @@
 import React, { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useSigef } from '@/context/SigefContext'
 import {
   AlertOctagon,
-  AlertTriangle,
   Building2,
-  CheckCircle2,
   Clock,
+  FileKey,
   Globe,
   Plus,
   RefreshCw,
-  Search,
   ShieldCheck,
   Zap,
 } from 'lucide-react'
@@ -36,6 +35,28 @@ import {
 } from '@/components/ui/dialog'
 import { Empresa, SituacaoCadastral } from '@/types/sigef'
 import { toast } from 'sonner'
+import { useAuth } from '@/context/AuthContext'
+import { montarOcorrenciaEdicaoEmpresa } from '@/services/ocorrenciasCertificado'
+import { UFS_BRASIL } from '@/services/ufs'
+
+// Validação de CNPJ (mesma regra de dígitos verificadores da Receita Federal)
+function validarCnpj(cnpj: string): boolean {
+  const digits = cnpj.replace(/\D/g, '')
+  if (digits.length !== 14 || /^(\d)\1{13}$/.test(digits)) return false
+  const calc = (base: string) => {
+    let weight = base.length - 7
+    let sum = 0
+    for (let i = 0; i < base.length; i++) {
+      sum += Number(base[i]) * weight--
+      if (weight < 2) weight = 9
+    }
+    const r = sum % 11
+    return r < 2 ? 0 : 11 - r
+  }
+  const d1 = calc(digits.slice(0, 12))
+  const d2 = calc(digits.slice(0, 12) + d1)
+  return digits === digits.slice(0, 12) + d1 + d2
+}
 
 export default function EmpresasSefazPage() {
   const {
@@ -46,7 +67,13 @@ export default function EmpresasSefazPage() {
     consultasDFe,
     ultimoNSU,
     executarConsultaDFe,
+    bloqueioConsultaDFe,
+    certificadoDFe,
+    adicionarOcorrenciaAuditoria,
   } = useSigef()
+
+  const { usuarioAtual } = useAuth()
+  const autor = usuarioAtual?.nome ?? usuarioAtual?.login ?? '—'
 
   // Estado para cadastro/edição de empresa
   const [modalEmpresaOpen, setModalEmpresaOpen] = useState(false)
@@ -91,8 +118,16 @@ export default function EmpresasSefazPage() {
 
   const salvarFormEmpresa = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formEmpresa.nomeFantasia.trim() || !formEmpresa.cnpj.trim()) {
+    if (!formEmpresa.nomeFantasia.trim() || !formEmpresa.razaoSocial.trim()) {
       toast.error('Preencha os campos obrigatórios da empresa.')
+      return
+    }
+    if (!validarCnpj(formEmpresa.cnpj)) {
+      toast.error('CNPJ inválido: verifique os dígitos verificadores.')
+      return
+    }
+    if (!UFS_BRASIL.some((u) => u.sigla === formEmpresa.uf)) {
+      toast.error('Selecione uma UF válida.')
       return
     }
 
@@ -104,6 +139,30 @@ export default function EmpresasSefazPage() {
         ? `Empresa com situação cadastral ${formEmpresa.situacaoCadastral} perante a Receita Federal (Art. 40 da IN RFB nº 2.119/2022). Fechamento bloqueado.`
         : formEmpresa.motivoBloqueio
 
+    // Auditoria (régua A13): campos alterados na edição (não no primeiro cadastro)
+    const existente = empresas.find((emp) => emp.id === formEmpresa.id)
+    if (existente) {
+      const campos: string[] = []
+      if (existente.razaoSocial !== formEmpresa.razaoSocial) campos.push('Razão Social')
+      if (existente.nomeFantasia !== formEmpresa.nomeFantasia) campos.push('Nome Fantasia')
+      if (existente.cnpj.replace(/\D/g, '') !== formEmpresa.cnpj.replace(/\D/g, ''))
+        campos.push('CNPJ')
+      if (existente.inscricaoEstadual !== formEmpresa.inscricaoEstadual)
+        campos.push('Inscrição Estadual')
+      if (existente.uf !== formEmpresa.uf) campos.push('UF')
+      if (existente.situacaoCadastral !== formEmpresa.situacaoCadastral)
+        campos.push('Situação Cadastral')
+      if (campos.length > 0) {
+        adicionarOcorrenciaAuditoria(
+          montarOcorrenciaEdicaoEmpresa({
+            empresa: { razaoSocial: formEmpresa.razaoSocial, cnpj: formEmpresa.cnpj },
+            autor,
+            camposAlterados: campos,
+          }),
+        )
+      }
+    }
+
     cadastrarOuEditarEmpresa({
       ...formEmpresa,
       bloquearFechamento: bloqueioAuto,
@@ -113,6 +172,10 @@ export default function EmpresasSefazPage() {
   }
 
   const dispararConsultaDFe = (forcarConsumoIndevido?: boolean) => {
+    if (bloqueioConsultaDFe) {
+      toast.error(bloqueioConsultaDFe)
+      return
+    }
     setConsultando(true)
     setTimeout(() => {
       executarConsultaDFe(ufConsulta, forcarConsumoIndevido)
@@ -259,6 +322,42 @@ export default function EmpresasSefazPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {bloqueioConsultaDFe ? (
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <FileKey className="size-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-bold text-amber-900">
+                    Certificado digital A1 necessário para consultar
+                  </div>
+                  <div className="text-[11px] text-amber-800 mt-0.5">
+                    {bloqueioConsultaDFe} A consulta simulada não roda sem um certificado A1 ativo.
+                  </div>
+                </div>
+              </div>
+              <Button
+                asChild
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-xs shrink-0"
+              >
+                <Link to="/certificado">
+                  <FileKey className="size-3.5 mr-1.5" />
+                  Instalar certificado
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            certificadoDFe && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-[11px] text-emerald-800">
+                <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
+                <span>
+                  Certificado A1 ativo: <strong>{certificadoDFe.subjectCN}</strong>
+                  {certificadoDFe.cnpj ? ` (CNPJ ${certificadoDFe.cnpj})` : ''} — será registrado em
+                  cada consulta.
+                </span>
+              </div>
+            )
+          )}
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
               <div className="flex items-center gap-2">
@@ -271,10 +370,11 @@ export default function EmpresasSefazPage() {
                   onChange={(e) => setUfConsulta(e.target.value)}
                   className="text-xs h-8 border border-slate-300 rounded-md px-2.5 font-bold bg-white"
                 >
-                  <option value="SP">SP (São Paulo)</option>
-                  <option value="MG">MG (Minas Gerais)</option>
-                  <option value="RJ">RJ (Rio de Janeiro)</option>
-                  <option value="PR">PR (Paraná)</option>
+                  {UFS_BRASIL.map((u) => (
+                    <option key={u.sigla} value={u.sigla}>
+                      {u.sigla} ({u.nome})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -442,17 +542,19 @@ export default function EmpresasSefazPage() {
 
                 <div>
                   <Label htmlFor="ufEmp">UF *</Label>
-                  <Input
+                  <select
                     id="ufEmp"
                     value={formEmpresa.uf}
-                    onChange={(e) =>
-                      setFormEmpresa({ ...formEmpresa, uf: e.target.value.toUpperCase() })
-                    }
-                    placeholder="SP"
-                    maxLength={2}
+                    onChange={(e) => setFormEmpresa({ ...formEmpresa, uf: e.target.value })}
                     required
-                    className="font-mono text-xs uppercase mt-1"
-                  />
+                    className="w-full text-xs h-9 border border-slate-300 rounded-md px-2 bg-white font-mono mt-1"
+                  >
+                    {UFS_BRASIL.map((u) => (
+                      <option key={u.sigla} value={u.sigla}>
+                        {u.sigla} — {u.nome}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

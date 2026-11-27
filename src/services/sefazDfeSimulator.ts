@@ -6,6 +6,9 @@ import { ConsultaDFeSefaz, DocumentoFiscal, Empresa } from '@/types/sigef'
  * documentos pré-carregados: cada consulta devolve o estado real do
  * distribuidor a partir dos documentos já baixados para a empresa.
  *
+ * A consulta EXIGE certificado digital A1 ativo (o gate é feito no
+ * SigefContext): o certificado usado é registrado no histórico da consulta.
+ *
  * Retornos possíveis:
  * - 137: Nenhum documento localizado (último NSU já alcançado)
  * - 656: Rejeição - Consumo Indevido (consulta repetida sem intervalo)
@@ -13,6 +16,12 @@ import { ConsultaDFeSefaz, DocumentoFiscal, Empresa } from '@/types/sigef'
  * Documentos reais entram no sistema pela importação de XML (ImportarPage),
  * que atualiza o NSU/ultimoNSU da empresa normalmente.
  */
+
+export interface CertificadoUsadoConsulta {
+  subjectCN: string
+  cnpj: string
+  vencido: boolean
+}
 
 export interface ResultadoConsultaDFe {
   consulta: ConsultaDFeSefaz
@@ -28,12 +37,19 @@ export function consultarDFeSimulado(params: {
   uf: string
   ultimoNSUAtual: number
   forcarConsumoIndevido?: boolean
+  certificadoUsado?: CertificadoUsadoConsulta
 }): ResultadoConsultaDFe {
-  const { uf, ultimoNSUAtual, forcarConsumoIndevido } = params
+  const { uf, ultimoNSUAtual, forcarConsumoIndevido, certificadoUsado } = params
 
   const agora = Date.now()
   const ultimoAcessoUf = ultimaConsultaTimestampPorUf[uf] || 0
   const diferencaSegundos = (agora - ultimoAcessoUf) / 1000
+
+  const certificadoResumo = certificadoUsado
+    ? ` · Certificado: ${certificadoUsado.subjectCN}${
+        certificadoUsado.cnpj ? ` (CNPJ ${certificadoUsado.cnpj})` : ''
+      }`
+    : ''
 
   // 1. Rejeição 656 - Consumo Indevido se consulta com menos de 3 segundos repetidamente
   if (forcarConsumoIndevido || (diferencaSegundos > 0 && diferencaSegundos < 3)) {
@@ -47,7 +63,8 @@ export function consultarDFeSimulado(params: {
       maxNSU: ultimoNSUAtual,
       codigoStatus: 656,
       xMotivo:
-        'Rejeição 656: Consumo Indevido. Deve ser aguardado o tempo regulamentar de consulta ao Web Service SEFAZ.',
+        'Rejeição 656: Consumo Indevido. Deve ser aguardado o tempo regulamentar de consulta ao Web Service SEFAZ.' +
+        certificadoResumo,
       documentosRetornados: 0,
     }
     return {
@@ -71,14 +88,15 @@ export function consultarDFeSimulado(params: {
     novoUltNSU: ultimoNSUAtual,
     maxNSU: ultimoNSUAtual,
     codigoStatus: 137,
-    xMotivo: 'Nenhum documento localizado para o destinatário no período consultado.',
+    xMotivo:
+      'Nenhum documento localizado para o destinatário no período consultado.' + certificadoResumo,
     documentosRetornados: 0,
   }
 
   return {
     consulta: consultaVazia,
     documentosNovos: [],
-    mensagem: `SEFAZ ${uf}: Nenhum documento localizado (cStat 137). O NSU atual (${ultimoNSUAtual}) já é o mais recente.`,
+    mensagem: `SEFAZ ${uf}: Nenhum documento localizado (cStat 137). O NSU atual (${ultimoNSUAtual}) já é o mais recente.${certificadoResumo}`,
     tipo: 'SUCESSO_VAZIO',
   }
 }
