@@ -162,7 +162,7 @@ export default function ProdutosPage() {
   const pendenciasDePara: ItemPendente[] = []
   documentos.forEach((doc) => {
     if (doc.status === 'AGUARDANDO_DE_PARA') {
-      doc.itens.forEach((it) => {
+      ;(doc.itens || []).forEach((it) => {
         if (!it.codigoInventario) {
           pendenciasDePara.push({
             docId: doc.id,

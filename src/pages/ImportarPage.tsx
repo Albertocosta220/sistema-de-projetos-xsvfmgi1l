@@ -559,7 +559,7 @@ export default function ImportarPage() {
 
               <div>
                 <h4 className="font-bold text-slate-800 mb-2">
-                  Itens do Documento Fiscal ({docSelecionado.itens.length}):
+                  Itens do Documento Fiscal ({(docSelecionado.itens || []).length}):
                 </h4>
                 <div className="border border-slate-200 rounded-lg overflow-x-auto">
                   <Table>
@@ -574,7 +574,7 @@ export default function ImportarPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {docSelecionado.itens.map((it) => (
+                      {(docSelecionado.itens || []).map((it) => (
                         <TableRow key={it.nItem}>
                           <TableCell className="font-bold">{it.nItem}</TableCell>
                           <TableCell className="font-mono text-blue-700">{it.cProd}</TableCell>

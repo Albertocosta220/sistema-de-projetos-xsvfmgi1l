@@ -116,9 +116,11 @@ export function montarBlocoC(params: {
     // gerariam crédito/saída que não existem mais.
     const itensC170: ItemSpedC170[] = isCancelado
       ? []
-      : doc.itens.map((item) => montarItemC170(item, produtos, doc.tipoOperacao === 'ENTRADA'))
+      : (doc.itens || []).map((item) =>
+          montarItemC170(item, produtos, doc.tipoOperacao === 'ENTRADA'),
+        )
 
-    const vlMerc = doc.itens.reduce((s, it) => s + it.vProd, 0)
+    const vlMerc = (doc.itens || []).reduce((s, it) => s + it.vProd, 0)
     const vlBcIcms = itensC170.reduce((s, it) => s + it.vlBcIcms, 0)
     const vlIcms = itensC170.reduce((s, it) => s + it.vlIcms, 0)
     const vlIpi = itensC170.reduce((s, it) => s + it.vlIpi, 0)
@@ -139,7 +141,7 @@ export function montarBlocoC(params: {
       indPgto: '2',
       vlMerc,
       indFrt: '9',
-      vlFrt: doc.itens.reduce((s, it) => s + (it.vFrete || 0), 0),
+      vlFrt: (doc.itens || []).reduce((s, it) => s + (it.vFrete || 0), 0),
       vlSeg: 0,
       vlOutDa: 0,
       vlBcIcms,

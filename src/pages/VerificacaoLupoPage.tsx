@@ -186,7 +186,9 @@ function rodarBateria(dados: EntradasBateria): ResultadoVerificacao[] {
 
   // 2. De-Para pendentes
   const itensPendentes = documentos.flatMap((d) =>
-    d.itens.filter((it) => it.pendenteDePara || (!it.codigoInventario && d.status !== 'CANCELADO')),
+    (d?.itens || []).filter(
+      (it) => it.pendenteDePara || (!it.codigoInventario && d.status !== 'CANCELADO'),
+    ),
   )
   const docsAguardando = documentos.filter((d) => d.status === 'AGUARDANDO_DE_PARA')
   resultados.push({

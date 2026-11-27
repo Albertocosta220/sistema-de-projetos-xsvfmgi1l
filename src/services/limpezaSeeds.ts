@@ -184,5 +184,17 @@ export function documentoVazio(d: DocumentoFiscal): boolean {
 }
 
 function sanitizarDocumentos(documentos: DocumentoFiscal[]): DocumentoFiscal[] {
-  return documentos.filter((d) => d && !documentoVazio(d))
+  return documentos
+    .filter((d) => d && !documentoVazio(d))
+    .map((d) => ({
+      ...d,
+      // Garante os campos que o vínculo automático e o kardex varrem:
+      // cnpjEmitente é o agrupador da tela Fornecedores e itens alimenta a
+      // coleta de pares — um documento restaurado sem eles quebraria (ou
+      // esconderia) o botão "Cadastrar e vincular automaticamente".
+      cnpjEmitente: d.cnpjEmitente ?? '',
+      nomeEmitente: d.nomeEmitente ?? '',
+      chaveAcesso: d.chaveAcesso ?? '',
+      itens: Array.isArray(d.itens) ? d.itens : [],
+    }))
 }

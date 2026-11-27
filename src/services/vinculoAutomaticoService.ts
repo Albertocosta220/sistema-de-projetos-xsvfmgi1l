@@ -31,9 +31,17 @@ export function coletarParesUnicos(
   const mapa = new Map<string, ParItemFornecedor>()
 
   documentos
-    .filter((d) => d.cnpjEmitente.replace(/\D/g, '') === cnpj && d.status !== 'CANCELADO')
+    .filter((d) => {
+      const emit = (d?.cnpjEmitente || '').replace(/\D/g, '')
+      return emit === cnpj && d.status !== 'CANCELADO'
+    })
     .forEach((d) => {
-      d.itens.forEach((it) => {
+      // Documentos restaurados do storage podem ter chegado sem o array de itens
+      // (XML bruto descartado por cota); sem a defesa, o forEach quebra e o botão
+      // "Cadastrar e vincular automaticamente" falha em silêncio.
+      const itens = Array.isArray(d?.itens) ? d.itens : []
+      itens.forEach((it) => {
+        if (!it?.cProd) return
         const chave = normalizarCodigo(it.cProd)
         if (!chave) return
         const atual = mapa.get(chave)
@@ -54,8 +62,12 @@ export function coletarParesUnicos(
 }
 
 /** Produto do catálogo cujo codigoInventario corresponde ao cProd (exato ou normalizado). */
-export function encontrarProdutoPorCProd(produtos: Produto[], cProd: string): Produto | undefined {
+export function encontrarProdutoPorCProd(
+  produtos: Produto[] | undefined,
+  cProd: string,
+): Produto | undefined {
   const alvo = (cProd || '').trim()
+  if (!alvo || !Array.isArray(produtos)) return undefined
   return (
     produtos.find((p) => p.codigoInventario === alvo) ||
     produtos.find((p) => normalizarCodigo(p.codigoInventario) === normalizarCodigo(alvo))

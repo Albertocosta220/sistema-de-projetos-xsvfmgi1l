@@ -129,7 +129,8 @@ export default function FornecedoresPage() {
     setProcessando(cnpj)
     try {
       const antesPendentes = documentos.filter(
-        (d) => d.cnpjEmitente.replace(/\D/g, '') === cnpj && d.status === 'AGUARDANDO_DE_PARA',
+        (d) =>
+          (d?.cnpjEmitente || '').replace(/\D/g, '') === cnpj && d.status === 'AGUARDANDO_DE_PARA',
       ).length
       const r = vincularFornecedorAutomatico({
         cnpjFornecedor: cnpj,
@@ -137,6 +138,11 @@ export default function FornecedoresPage() {
       })
       if (r.totalPares === 0) {
         // Nada para fazer (sem itens ou tudo já vinculado) — contexto dado pelo toast
+        return
+      }
+      if (r.criados === 0 && r.pendentes === 0) {
+        // Havia itens, mas todos já possuem vínculo idêntico — nada muda e o
+        // toast do contexto já explicou. Não abre resumo vazio.
         return
       }
       setResumo({
@@ -157,6 +163,13 @@ export default function FornecedoresPage() {
       } else {
         setPendencias(null)
       }
+    } catch (e) {
+      // O vínculo nunca deve falhar em silêncio: qualquer erro (storage cheio,
+      // documento inesperado) aparece para o usuário.
+      console.error('Erro no vínculo automático de fornecedor:', e)
+      toast.error(
+        'Não foi possível concluir o vínculo automático. Veja o console para detalhes e tente novamente.',
+      )
     } finally {
       setProcessando(null)
     }

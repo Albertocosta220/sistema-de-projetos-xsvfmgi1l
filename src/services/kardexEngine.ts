@@ -7,6 +7,7 @@ import {
   Produto,
 } from '@/types/sigef'
 import { REGUAS_AUDITORIA } from '@/data/regrasAuditoria'
+import { normalizarCodigo } from './vinculoAutomaticoService'
 
 export interface ResultadoProcessamentoLote {
   documentosAtualizados: DocumentoFiscal[]
@@ -35,11 +36,9 @@ export function buscarDePara(
   const alvo = normalizarCodigo(cProdFornecedor)
   return tabelaDePara.find(
     (dp) =>
-      dp.cnpjFornecedor.replace(/\D/g, '') === cnpjLimpo &&
-      normalizarCodigo(dp.cProd) === alvo,
+      dp.cnpjFornecedor.replace(/\D/g, '') === cnpjLimpo && normalizarCodigo(dp.cProd) === alvo,
   )
 }
-=======
 
 /**
  * Recomputa toda a linha do tempo do Kardex por Custo Médio Ponderado (CMP)
@@ -98,7 +97,7 @@ export function reprocessarKardexCronologico(
     if (doc.status === 'CANCELADO' || doc.status === 'DUPLICIDADE') return doc
 
     let pendenteDePara = false
-    const itensResolvidos = doc.itens.map((item) => {
+    const itensResolvidos = (doc.itens || []).map((item) => {
       // Se for saída emitida pela própria empresa, o código já costuma ser o próprio do produto
       let codInv: string | undefined
       let fator = 1.0
@@ -251,7 +250,7 @@ export function reprocessarKardexCronologico(
       // Se documento não está processado ou cancelado, não gera kardex direto (exceto se for cancelado gerando estorno)
       if (doc.status !== 'PROCESSADO' && !isCancelado) return
 
-      doc.itens.forEach((item) => {
+      ;(doc.itens || []).forEach((item) => {
         const codInv = item.codigoInventario
         if (!codInv) return
 
