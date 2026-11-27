@@ -16,6 +16,7 @@ import {
   MoreVertical,
   PackageX,
   RefreshCw,
+  Link2Off,
   Search,
   ShieldOff,
   Trash2,
@@ -66,6 +67,7 @@ export default function ImportarPage() {
     periodoAtivo,
     desqualificarNota,
     marcarNaoControlaEstoque,
+    naoVincularNota,
     requalificarNota,
   } = useSigef()
   const { temPermissao, usuarioAtual } = useAuth()
@@ -89,6 +91,8 @@ export default function ImportarPage() {
     'inventario',
   )
   const [docEspelho, setDocEspelho] = useState<DocumentoFiscal | null>(null)
+  /** Confirmação do "Não vincular" (não gera estoque, regra CNPJ+item gravada). */
+  const [docParaNaoVincular, setDocParaNaoVincular] = useState<DocumentoFiscal | null>(null)
 
   /** Abre o diálogo de marcação no modo escolhido (inventário ou controle de estoque). */
   const abrirDialogoDesqualificar = (doc: DocumentoFiscal, modo: 'inventario' | 'estoque') => {
@@ -181,6 +185,19 @@ export default function ImportarPage() {
     toast.success(
       `Nota ${doc.numero} requalificada — volta a gerar Inventário/Kardex (regras do emitente/produto removidas).`,
     )
+  }
+
+  /** Confirma o "Não vincular": regra CNPJ+item gravada, sem de-para, fora do estoque. */
+  const confirmarNaoVincular = () => {
+    if (!docParaNaoVincular) return
+    const res = naoVincularNota(docParaNaoVincular.id)
+    setDocParaNaoVincular(null)
+    if (!res.regra) {
+      toast.error(
+        'Não foi possível gravar: a nota não possui itens com código identificável (ou já estava gravada).',
+      )
+      return
+    }
   }
 
   // Filtragem
@@ -537,7 +554,12 @@ export default function ImportarPage() {
                           {getStatusBadge(doc.status)}
                           {doc.desqualificadaParaInventario && (
                             <div className="mt-1">
-                              {doc.naoControlaEstoque ? (
+                              {doc.naoVinculaEstoque ? (
+                                <Badge className="bg-violet-100 text-violet-800 border border-violet-300 text-[10px] flex items-center gap-1 w-fit">
+                                  <Link2Off className="size-3" aria-hidden="true" />
+                                  Não vincular (não gera estoque)
+                                </Badge>
+                              ) : doc.naoControlaEstoque ? (
                                 <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] flex items-center gap-1 w-fit">
                                   <PackageX className="size-3" aria-hidden="true" />
                                   Não controla estoque
@@ -605,7 +627,7 @@ export default function ImportarPage() {
                                 onClick={() => confirmarRequalificacao(doc)}
                                 title={
                                   podeProcessar
-                                    ? 'Remover as marcas "não gera inventário"/"não controla estoque" (regras do emitente/produto)'
+                                    ? 'Desfazer: remover as regras gravadas e reprocessar (nota volta ao Kardex/Bloco H)'
                                     : 'Sem permissão: exige a ação "Processar notas" no perfil'
                                 }
                               >
@@ -642,6 +664,10 @@ export default function ImportarPage() {
                                   >
                                     <PackageX className="size-3.5 mr-1.5" aria-hidden="true" />
                                     Não controla estoque (Kardex/Bloco H)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setDocParaNaoVincular(doc)}>
+                                    <Link2Off className="size-3.5 mr-1.5" aria-hidden="true" />
+                                    Não vincular (não gera estoque)
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -791,10 +817,57 @@ export default function ImportarPage() {
       <DialogoDesqualificarNota
         doc={docParaDesqualificar}
         modo={modoDesqualificacao}
-        onConfirm={confirmarDesqualificacao}
+        onConfirm={() => confirmarDesqualificacao()}
         onCancel={() => setDocParaDesqualificar(null)}
       />
 
+      {/* Confirmação do "Não vincular": regra CNPJ+item gravada, sem de-para */}
+      <Dialog
+        open={!!docParaNaoVincular}
+        onOpenChange={(aberto) => {
+          if (!aberto) setDocParaNaoVincular(null)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Link2Off className="size-4 text-violet-700" aria-hidden="true" />
+              Não vincular — NF-e nº {docParaNaoVincular?.numero}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Grava a regra <strong>CNPJ do emitente + item</strong> como "não gera estoque": o
+              de-para NÃO é criado, o item NÃO gera estoque e NÃO entra no inventário (fora do
+              Kardex e do Bloco H). Notas futuras do mesmo CNPJ + item entram automaticamente
+              marcadas.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-xs space-y-1 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div>
+              <span className="text-slate-500 font-semibold">Emitente:</span>{' '}
+              {docParaNaoVincular?.nomeEmitente} ({docParaNaoVincular?.cnpjEmitente})
+            </div>
+            <div>
+              <span className="text-slate-500 font-semibold">Item(ns):</span>{' '}
+              {(docParaNaoVincular?.itens || [])
+                .map((i) => i.cProd)
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .join(', ')}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDocParaNaoVincular(null)}>
+              Voltar
+            </Button>
+            <Button
+              size="sm"
+              className="bg-violet-700 hover:bg-violet-800 text-white"
+              onClick={confirmarNaoVincular}
+            >
+              Confirmar "Não vincular"
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Modal Cancelamento com Estorno */}
       {docParaCancelar && (
         <Dialog open={!!docParaCancelar} onOpenChange={() => setDocParaCancelar(null)}>

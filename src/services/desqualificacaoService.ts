@@ -10,6 +10,11 @@
 // exibido na fila. A marca no documento é DERIVADA das regras — nunca gravada
 // solta — garantindo que requalificar (excluir a regra) desmarque todos os
 // documentos de uma vez.
+//
+// "Não vincular" (terceiro pedido do usuário): gravar o CNPJ emitente + o item
+// que NÃO gera estoque/inventário SEM criar o de-para. Mesma persistência e
+// mesmos efeitos de exclusão, com origem NAO_VINCULA_ESTOQUE — o de-para não
+// é criado e as notas futuras do mesmo par já entram marcadas.
 import { DocumentoFiscal, OrigemRegraDesqualificacao, RegraDesqualificacao } from '@/types/sigef'
 import { normalizarCodigo } from './vinculoAutomaticoService'
 
@@ -57,11 +62,12 @@ export function aplicarRegrasDesqualificacao(
   if (!regras || regras.length === 0) {
     // Sem regras, nenhuma marca deve sobrar (requalificação total).
     return documentos.map((d) =>
-      d.desqualificadaParaInventario || d.naoControlaEstoque
+      d.desqualificadaParaInventario || d.naoControlaEstoque || d.naoVinculaEstoque
         ? {
             ...d,
             desqualificadaParaInventario: false,
             naoControlaEstoque: false,
+            naoVinculaEstoque: false,
             desqualificadaEm: undefined,
             desqualificadaPor: undefined,
           }
@@ -79,10 +85,12 @@ export function aplicarRegrasDesqualificacao(
     const desqualificada = regrasDoDoc.length > 0
     // "Não controla estoque" vence quando qualquer item casado veio dessa origem.
     const naoControla = regrasDoDoc.some((r) => r.origem === 'CONTROLE_ESTOQUE')
+    const naoVincula = regrasDoDoc.some((r) => r.origem === 'NAO_VINCULA_ESTOQUE')
     const regraOrigem = regrasDoDoc[0]
     if (
       desqualificada === !!doc.desqualificadaParaInventario &&
-      naoControla === !!doc.naoControlaEstoque
+      naoControla === !!doc.naoControlaEstoque &&
+      naoVincula === !!doc.naoVinculaEstoque
     )
       return doc
     if (desqualificada) {
@@ -90,6 +98,7 @@ export function aplicarRegrasDesqualificacao(
         ...doc,
         desqualificadaParaInventario: true,
         naoControlaEstoque: naoControla,
+        naoVinculaEstoque: naoVincula,
         desqualificadaEm: regraOrigem?.criadoEm,
         desqualificadaPor: regraOrigem?.criadoPor,
       }
@@ -98,6 +107,7 @@ export function aplicarRegrasDesqualificacao(
       ...doc,
       desqualificadaParaInventario: false,
       naoControlaEstoque: false,
+      naoVinculaEstoque: false,
       desqualificadaEm: undefined,
       desqualificadaPor: undefined,
     }

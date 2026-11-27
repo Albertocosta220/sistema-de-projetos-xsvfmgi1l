@@ -69,7 +69,12 @@ export interface IndicadoresFiscaisPainel {
 
 /** Nota válida p/ totais do período: processada e sem marca de desqualificação. */
 function notaValidaParaTotais(doc: DocumentoFiscal): boolean {
-  return doc.status === 'PROCESSADO' && !doc.desqualificadaParaInventario && !doc.naoControlaEstoque
+  return (
+    doc.status === 'PROCESSADO' &&
+    !doc.desqualificadaParaInventario &&
+    !doc.naoControlaEstoque &&
+    !doc.naoVinculaEstoque
+  )
 }
 
 function saldoUltimoMovimento(kardex: MovimentoKardex[], codigoInventario: string) {

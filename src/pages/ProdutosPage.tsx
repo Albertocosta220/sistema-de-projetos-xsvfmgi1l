@@ -9,6 +9,8 @@ import {
   FileCheck,
   Layers,
   Link as LinkIcon,
+  Link2Off,
+  MoreVertical,
   Package,
   Plus,
   Trash2,
@@ -34,10 +36,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { Produto } from '@/types/sigef'
 import { CNPJ_REGRA_CFOP_LEGADO } from '@/services/regrasCfopService'
+import { chaveRegraDesqualificacao } from '@/services/desqualificacaoService'
 import {
   compararComCatalogo,
   lerPlanilhaSucatas,
@@ -64,6 +73,8 @@ export default function ProdutosPage() {
     salvarDePara,
     excluirDePara,
     importarProdutosPlanilha,
+    naoVincularNota,
+    regrasDesqualificacao,
   } = useSigef()
   const { temPermissao } = useAuth()
   const podeExcluir = temPermissao('acao-excluir-registros')
@@ -160,10 +171,20 @@ export default function ProdutosPage() {
   }
 
   const pendenciasDePara: ItemPendente[] = []
+  // Itens gravados como "Não vincular" (CNPJ + cProd) saem das pendências:
+  // a regra já os exclui do estoque/inventário — não há vínculo a criar.
+  const chavesNaoVinculadas = new Set(
+    regrasDesqualificacao
+      .filter((r) => r.origem === 'NAO_VINCULA_ESTOQUE')
+      .map((r) => chaveRegraDesqualificacao(r.cnpjEmitente, r.cProd)),
+  )
   documentos.forEach((doc) => {
     if (doc.status === 'AGUARDANDO_DE_PARA') {
       ;(doc.itens || []).forEach((it) => {
-        if (!it.codigoInventario) {
+        if (
+          !it.codigoInventario &&
+          !chavesNaoVinculadas.has(chaveRegraDesqualificacao(doc.cnpjEmitente, it.cProd))
+        ) {
           pendenciasDePara.push({
             docId: doc.id,
             nNF: doc.numero,
@@ -179,6 +200,18 @@ export default function ProdutosPage() {
       })
     }
   })
+
+  /** Confirmação do "Não vincular" na pendência (regra CNPJ+item gravada). */
+  const [pendenteNaoVincular, setPendenteNaoVincular] = useState<ItemPendente | null>(null)
+  const confirmarNaoVincular = () => {
+    if (!pendenteNaoVincular) return
+    const res = naoVincularNota(pendenteNaoVincular.docId)
+    setPendenteNaoVincular(null)
+    if (!res.regra) {
+      toast.error('Não foi possível gravar: a nota não possui itens com código identificável.')
+      return
+    }
+  }
 
   const abrirNovoProduto = () => {
     setProdutoEditando(null)
@@ -429,14 +462,35 @@ export default function ProdutosPage() {
                           </TableCell>
                           <TableCell className="text-xs">{it.uCom}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
-                              onClick={() => abrirDeParaParaPendente(it)}
-                            >
-                              <span>Vincular De-Para</span>
-                              <ArrowRight className="size-3 ml-1" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                                onClick={() => abrirDeParaParaPendente(it)}
+                              >
+                                <span>Vincular De-Para</span>
+                                <ArrowRight className="size-3 ml-1" />
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-violet-700 hover:text-violet-800 hover:bg-violet-50"
+                                    aria-label={`Outras ações para o item ${it.cProd} da NF ${it.nNF}`}
+                                    title="Não vincular: o item não gera estoque nem inventário"
+                                  >
+                                    <MoreVertical className="size-3.5" aria-hidden="true" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setPendenteNaoVincular(it)}>
+                                    <Link2Off className="size-3.5 mr-1.5" aria-hidden="true" />
+                                    Não vincular (não gera estoque)
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -447,6 +501,51 @@ export default function ProdutosPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Confirmação do "Não vincular" a partir da pendência de De-Para */}
+        <Dialog
+          open={!!pendenteNaoVincular}
+          onOpenChange={(aberto) => {
+            if (!aberto) setPendenteNaoVincular(null)
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <Link2Off className="size-4 text-violet-700" aria-hidden="true" />
+                Não vincular — NF {pendenteNaoVincular?.nNF}
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Grava a regra <strong>CNPJ do emitente + item</strong> como "não gera estoque": o
+                de-para NÃO é criado, o item NÃO gera estoque e NÃO entra no inventário (fora do
+                Kardex e do Bloco H). Notas futuras do mesmo CNPJ + item entram automaticamente
+                marcadas.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="text-xs space-y-1 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <span className="text-slate-500 font-semibold">Emitente:</span>{' '}
+                {pendenteNaoVincular?.nomeEmit} ({pendenteNaoVincular?.cnpjEmit})
+              </div>
+              <div>
+                <span className="text-slate-500 font-semibold">Item:</span>{' '}
+                {pendenteNaoVincular?.cProd} — {pendenteNaoVincular?.xProd}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setPendenteNaoVincular(null)}>
+                Voltar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-violet-700 hover:bg-violet-800 text-white"
+                onClick={confirmarNaoVincular}
+              >
+                Confirmar "Não vincular"
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* TAB 2: CATÁLOGO DE PRODUTOS */}
         <TabsContent value="produtos" className="space-y-4">

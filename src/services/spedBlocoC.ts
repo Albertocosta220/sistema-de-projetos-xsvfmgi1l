@@ -82,10 +82,16 @@ export function montarBlocoC(params: {
   const docIdsJaLancados = new Set<string>()
   const registros: DocSpedC100[] = []
 
+  // Desqualificadas para inventário, "não controla estoque" e "não vincular"
+  // (regra CNPJ + cProd sem de-para) ficam fora do Bloco C: não geram
+  // estoque/inventário, logo não escrituram C170 (mesma exclusão do Kardex).
   const docsProcessados = documentos
     .filter(
       (d) =>
         (d.status === 'PROCESSADO' || d.status === 'CANCELADO') &&
+        !d.desqualificadaParaInventario &&
+        !d.naoControlaEstoque &&
+        !d.naoVinculaEstoque &&
         !docIdsJaLancados.has(d.id) &&
         new Date(d.dataEmissao) >= dtIni &&
         new Date(d.dataEmissao) <= dtFin,

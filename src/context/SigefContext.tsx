@@ -113,6 +113,9 @@ interface SigefContextType {
     regra: RegraDesqualificacao | null
     afetados: number
   }
+  /** "Não vincular": grava regra CNPJ+cProd SEM criar o de-para — o item não
+   * gera estoque nem inventário; notas futuras do mesmo par já entram marcadas. */
+  naoVincularNota: (docId: string) => { regra: RegraDesqualificacao | null; afetados: number }
   requalificarNota: (docId: string) => void
 
   // Competência ativa (período da última importação — persistido por empresa)
@@ -552,6 +555,16 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const marcarNaoControlaEstoque = (docId: string) =>
     aplicarMarcaDesqualificacao(docId, 'CONTROLE_ESTOQUE')
 
+  /**
+   * "Não vincular" (aba Produtos → Pendências de De-Para, e aba Importar):
+   * grava a regra CNPJ emitente + cProd SEM criar vínculo de de-para — o item
+   * NÃO gera estoque e NÃO gera inventário. Notas futuras do mesmo CNPJ + item
+   * já entram marcadas (marca derivada em documentosComRegras) e ficam fora do
+   * Kardex e do Bloco H. Desfazer = Requalificar (exclui a regra e reprocessa).
+   */
+  const naoVincularNota = (docId: string) =>
+    aplicarMarcaDesqualificacao(docId, 'NAO_VINCULA_ESTOQUE')
+
   const aplicarMarcaDesqualificacao = (
     docId: string,
     origem: OrigemRegraDesqualificacao,
@@ -560,6 +573,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!doc) return { regra: null, afetados: 0 }
 
     const modoEstoque = origem === 'CONTROLE_ESTOQUE'
+    const modoNaoVincula = origem === 'NAO_VINCULA_ESTOQUE'
     const cnpjLimpo = (doc.cnpjEmitente || '').replace(/\D/g, '')
     const itens = itensDocumento(doc)
     if (!cnpjLimpo || itens.length === 0) {
@@ -593,34 +607,48 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (novasRegras.length === store.regrasDesqualificacao.length) {
       toast.info(
-        modoEstoque
-          ? 'Todos os itens desta nota já estão marcados como "não controla estoque"/"não gera inventário".'
-          : 'Todos os itens desta nota já estão desqualificados para o inventário.',
+        modoNaoVincula
+          ? 'Todos os itens desta nota já estão gravados como "não vincular" (não geram estoque).'
+          : modoEstoque
+            ? 'Todos os itens desta nota já estão marcados como "não controla estoque"/"não gera inventário".'
+            : 'Todos os itens desta nota já estão desqualificados para o inventário.',
       )
       return { regra: null, afetados: 0 }
     }
 
     const documentosMarcados = aplicarRegrasDesqualificacao(store.documentos, novasRegras)
     const afetados = documentosMarcados.filter(
-      (d) => d.desqualificadaParaInventario || d.naoControlaEstoque,
+      (d) => d.desqualificadaParaInventario || d.naoControlaEstoque || d.naoVinculaEstoque,
     ).length
 
     const resultado = reprocessarKardexCronologico(store.produtos, documentosMarcados, store.dePara)
 
     const ocorrencia: OcorrenciaAuditoria = {
-      id: modoEstoque ? `oco-a13-estoque-${Date.now()}` : `oco-a13-desqual-${Date.now()}`,
+      id: modoNaoVincula
+        ? `oco-a13-naovincula-${Date.now()}`
+        : modoEstoque
+          ? `oco-a13-estoque-${Date.now()}`
+          : `oco-a13-desqual-${Date.now()}`,
       regraCodigo: 'A13',
-      regraNome: modoEstoque
-        ? 'Marca "Não controla estoque" — itens fora do Kardex/Bloco H'
-        : 'Desqualificação para inventário — itens fora do Bloco H',
+      regraNome: modoNaoVincula
+        ? '"Não vincular" — CNPJ + item sem de-para, fora do estoque/inventário'
+        : modoEstoque
+          ? 'Marca "Não controla estoque" — itens fora do Kardex/Bloco H'
+          : 'Desqualificação para inventário — itens fora do Bloco H',
       severidade: 'INFO',
-      descricao: modoEstoque
-        ? `Marca "Não controla estoque" pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
+      descricao: modoNaoVincula
+        ? `"Não vincular" pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
             .map((i) => i.cProd)
-            .join(', ')} — ${afetados} documento(s) marcado(s) "não controla estoque".`
-        : `Desqualificação para inventário pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
-            .map((i) => i.cProd)
-            .join(', ')} — ${afetados} documento(s) marcado(s) "não gera inventário".`,
+            .join(
+              ', ',
+            )} gravado(s) como "não gera estoque" (sem de-para) — ${afetados} documento(s) fora do Kardex/Bloco H.`
+        : modoEstoque
+          ? `Marca "Não controla estoque" pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
+              .map((i) => i.cProd)
+              .join(', ')} — ${afetados} documento(s) marcado(s) "não controla estoque".`
+          : `Desqualificação para inventário pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
+              .map((i) => i.cProd)
+              .join(', ')} — ${afetados} documento(s) marcado(s) "não gera inventário".`,
       baseLegal: REGUAS_AUDITORIA.find((r) => r.codigo === 'A13')?.baseLegal || '',
       documentoRef: doc.numero,
       chaveAcessoRef: doc.chaveAcesso,
@@ -637,9 +665,11 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     })
 
     toast.success(
-      modoEstoque
-        ? `Nota ${doc.numero} marcada como "não controla estoque": ${afetados} documento(s) do emitente ${cnpjLimpo} com o(s) mesmo(s) produto(s) ficam fora do Kardex e do Bloco H.`
-        : `Nota desqualificada para o inventário: ${afetados} documento(s) do emitente ${cnpjLimpo} com o(s) mesmo(s) produto(s) ficam fora do Bloco H.`,
+      modoNaoVincula
+        ? `"Não vincular" gravado para o emitente ${cnpjLimpo}: ${afetados} documento(s) com o(s) mesmo(s) item(ns) não geram estoque nem inventário (fora do Kardex e do Bloco H).`
+        : modoEstoque
+          ? `Nota ${doc.numero} marcada como "não controla estoque": ${afetados} documento(s) do emitente ${cnpjLimpo} com o(s) mesmo(s) produto(s) ficam fora do Kardex e do Bloco H.`
+          : `Nota desqualificada para o inventário: ${afetados} documento(s) do emitente ${cnpjLimpo} com o(s) mesmo(s) produto(s) ficam fora do Bloco H.`,
     )
     return { regra: novasRegras[novasRegras.length - 1] ?? null, afetados }
   }
@@ -668,9 +698,9 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const ocorrencia: OcorrenciaAuditoria = {
       id: `oco-a13-requal-${Date.now()}`,
       regraCodigo: 'A13',
-      regraNome: 'Desqualificação para inventário — itens fora do Bloco H',
+      regraNome: 'Requalificação — desmarcar "não gera estoque/inventário"',
       severidade: 'INFO',
-      descricao: `Requalificação para inventário pela NF-e nº ${doc.numero} (chave ${doc.chaveAcesso}) por ${nomeAutor}: regra(s) do emitente ${cnpjLimpo} removida(s) — documentos voltam ao Bloco H.`,
+      descricao: `Requalificação pela NF-e nº ${doc.numero} (chave ${doc.chaveAcesso}) por ${nomeAutor}: regra(s) do emitente ${cnpjLimpo} removida(s) — documentos voltam ao Kardex, ao inventário e ao Bloco H.`,
       baseLegal: REGUAS_AUDITORIA.find((r) => r.codigo === 'A13')?.baseLegal || '',
       documentoRef: doc.numero,
       chaveAcessoRef: doc.chaveAcesso,
@@ -1103,6 +1133,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         regrasDesqualificacao: store.regrasDesqualificacao,
         desqualificarNota,
         marcarNaoControlaEstoque,
+        naoVincularNota,
         requalificarNota,
         fechamentos: store.fechamentos,
         ocorrencias: store.ocorrencias,
