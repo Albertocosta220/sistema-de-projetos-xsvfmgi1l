@@ -125,7 +125,13 @@ export function aplicarRegrasDesqualificacao(
 export function chavesNaoVinculaEstoque(regras: RegraDesqualificacao[]): Set<string> {
   return new Set(
     (regras || [])
-      .filter((r) => r.origem === 'NAO_VINCULA_ESTOQUE')
+      // TODAS as origens de desqualificação (desqualificada p/ inventário,
+      // "não controla estoque" e "não vincular") tiram o item (CNPJ + cProd)
+      // das pendências de de-para e da fila AGUARDANDO_DE_PARA — não é
+      // pendência, aviso nem erro: ou o item já tem vínculo (e fica fora do
+      // Kardex/Bloco H pela marca derivada), ou nunca terá (regra gravada sem
+      // de-para). Fechamento do buraco da desqualificação por NOTA inteira:
+      // as regras são por item, e itensDocumento cobre a nota inteira.
       .map((r) => chaveRegraDesqualificacao(r.cnpjEmitente, r.cProd)),
   )
 }
