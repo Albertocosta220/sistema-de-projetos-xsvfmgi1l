@@ -67,6 +67,91 @@ export type StatusDocumento =
 
 export type TipoOperacaoNFe = 'ENTRADA' | 'SAIDA'
 
+// ===== Espelho da NF-e (dados estruturados extraídos do XML na importação) =====
+// Sobrevivem ao descarte do XML bruto por cota (marcador XML_COMPACTADO_QUOTA):
+// o espelho da tela Importar lê daqui, sem re-parsear o XML.
+
+export interface EnderecoNFe {
+  xLgr?: string
+  nro?: string
+  xBairro?: string
+  xMun?: string
+  uf?: string
+  cep?: string
+}
+
+export interface ParticipanteNFe {
+  xNome: string
+  cnpjCpf: string
+  ie?: string
+  endereco?: EnderecoNFe
+}
+
+export interface ProtocoloAutorizacao {
+  nProt: string
+  dhRecbto?: string
+  cStat?: string
+  xMotivo?: string
+  tpAmb?: string
+  verAplic?: string
+}
+
+export type TipoEventoNFe = 'CANC' | 'CCe' | 'MANIFESTACAO' | 'OUTRO'
+
+export interface EventoNFe {
+  tipo: TipoEventoNFe
+  /** Código do tipo de evento (110111 cancelamento, 110110 CCe, 2102xx manifestação...). */
+  codigoEvento: string
+  descricao?: string
+  sequencial?: number
+  nProt?: string
+  dataEvento?: string
+  dataRegistro?: string
+  cStat?: string
+  xMotivo?: string
+}
+
+export interface TotaisNFe {
+  vBC?: number
+  vICMS?: number
+  vProd: number
+  vFrete?: number
+  vSeg?: number
+  vDesc?: number
+  vII?: number
+  vIPI?: number
+  vPIS?: number
+  vCOFINS?: number
+  vOutro?: number
+  vNF: number
+}
+
+export interface EspelhoNFe {
+  naturezaOperacao?: string
+  emitente: ParticipanteNFe
+  destinatario: ParticipanteNFe
+  protocoloAutorizacao?: ProtocoloAutorizacao
+  eventos: EventoNFe[]
+  totais: TotaisNFe
+}
+
+/**
+ * Regra de desqualificação para inventário (funcionalidade do usuário): excluir
+ * do Kardex/Inventário todas as notas de um CNPJ emitente que contenham o
+ * produto (cProd do fornecedor). Persistida por empresa; a marca no documento
+ * é derivada destas regras por aplicarRegrasDesqualificacao.
+ */
+export interface RegraDesqualificacao {
+  id: string
+  cnpjEmitente: string
+  razaoSocialEmitente?: string
+  cProd: string
+  xProd?: string
+  criadoEm: string
+  criadoPor: string
+  chaveDocOrigem?: string
+}
+
 export interface ItemNFe {
   nItem: number
   cProd: string
@@ -117,6 +202,12 @@ export interface DocumentoFiscal {
   justificativaCancelamento?: string
   /** NSU atribuído pelo distribuidor DF-e simulado (quando baixado via consulta). */
   nsu?: number
+  /** Marca "não gera inventário": fora do Kardex, Bloco H e Bloco C (regra CNPJ + cProd). */
+  desqualificadaParaInventario?: boolean
+  desqualificadaEm?: string
+  desqualificadaPor?: string
+  /** Espelho estruturado do XML (protocolo de autorização, eventos, endereços, totais). */
+  espelho?: EspelhoNFe
 }
 
 export type TipoMovimentoKardex =
@@ -229,4 +320,6 @@ export interface DadosEmpresaStore {
   ultimoNSU: number
   /** Competência ativa (YYYY-MM) definida pela última importação — persistida por empresa. */
   competenciaAtiva?: string
+  /** Regras de desqualificação para inventário (CNPJ emitente + cProd do fornecedor). */
+  regrasDesqualificacao: RegraDesqualificacao[]
 }

@@ -1,4 +1,8 @@
-import { DocumentoFiscal, ItemNFe, TipoOperacaoNFe } from '@/types/sigef'
+// Parser NF-e: extração do espelho estruturado (protocolo de autorização,
+// eventos como cancelamento/CCe/manifestação, endereços e totais) no momento
+// da importação — o espelho da tela Importar lê desses dados estruturados,
+// funcionando mesmo depois de o XML bruto ser descartado do localStorage.
+import { DocumentoFiscal, EspelhoNFe, EventoNFe, ParticipanteNFe, ItemNFe, TipoOperacaoNFe } from '@/types/sigef'
 import { MARCADOR_XML_COMPACTADO } from './storageService'
 
 // Helper simples e resiliente para extrair tags XML (funciona com namespace ou sem)
@@ -27,6 +31,148 @@ export function extrairChaveAcesso(xml: string): string {
   const chNfe = getTagText(xml, 'chNFe')
   if (chNfe && chNfe.length === 44) return chNfe
   return ''
+}
+
+/** Descrição amigável dos tipos de evento conhecidos da NF-e. */
+export function descricaoTipoEvento(codigo: string, descEventoXml?: string): string {
+  if (codigo === '110111') return 'Cancelamento de NF-e'
+  if (codigo === '110112') return 'Cancelamento por substituição'
+  if (codigo === '110110') return 'Carta de Correção Eletrônica'
+  if (codigo === '210200') return 'Manifestação — Confirmação da Operação'
+  if (codigo === '210210') return 'Manifestação — Ciência da Operação'
+  if (codigo === '210220') return 'Manifestação — Desconhecimento da Operação'
+  if (codigo === '210240') return 'Manifestação — Operação Não Realizada'
+  return descEventoXml || 'Evento'
+}
+
+/** Participante (emitente/destinatário) com endereço, a partir do bloco XML. */
+export function extrairParticipante(bloco: string, nomePadrao: string): ParticipanteNFe {
+  const enderBlock = getTagText(bloco, 'enderEmit') || getTagText(bloco, 'enderDest')
+  return {
+    xNome: getTagText(bloco, 'xNome') || nomePadrao,
+    cnpjCpf: getTagText(bloco, 'CNPJ') || getTagText(bloco, 'CPF'),
+    ie: getTagText(bloco, 'IE') || undefined,
+    endereco: enderBlock
+      ? {
+          xLgr: getTagText(enderBlock, 'xLgr') || undefined,
+          nro: getTagText(enderBlock, 'nro') || undefined,
+          xBairro: getTagText(enderBlock, 'xBairro') || undefined,
+          xMun: getTagText(enderBlock, 'xMun') || undefined,
+          uf: getTagText(enderBlock, 'UF') || undefined,
+          cep: getTagText(enderBlock, 'CEP') || undefined,
+        }
+      : undefined,
+  }
+}
+
+/**
+ * Extrai o protocolo de autorização (protNFe) e TODOS os eventos
+ * (procEventoNFe/resEvento: cancelamento 110111, CCe 110110, manifestação
+ * 2102xx e quaisquer outros) presentes no XML.
+ */
+export function extrairEspelho(xml: string, itens: ItemNFe[], vNF: number): EspelhoNFe {
+  const cleanXml = xml.trim()
+
+  // Protocolo de autorização (protNFe/infProt)
+  const protBlock = getTagText(cleanXml, 'protNFe')
+  const infProt = getTagText(protBlock, 'infProt')
+  const protocoloAutorizacao = infProt
+    ? {
+        nProt: getTagText(infProt, 'nProt'),
+        dhRecbto: getTagText(infProt, 'dhRecbto') || getTagText(infProt, 'dRecbto') || undefined,
+        cStat: getTagText(infProt, 'cStat') || undefined,
+        xMotivo: getTagText(infProt, 'xMotivo') || undefined,
+        tpAmb: getTagText(infProt, 'tpAmb') || undefined,
+        verAplic: getTagText(infProt, 'verAplic') || undefined,
+      }
+    : undefined
+
+  // Eventos: procEventoNFe (com protEvento/resEvento dentro)
+  const eventos: EventoNFe[] = []
+  getAllTags(cleanXml, 'procEventoNFe').forEach((bloco) => {
+    const evBlock = getTagText(bloco, 'evento')
+    const infEvento = getTagText(evBlock, 'infEvento') || getTagText(bloco, 'infEvento')
+    const retBlock = getTagText(bloco, 'retEvento')
+    const infRet = getTagText(retBlock, 'infEvento') || retBlock
+    const codigo = getTagText(infEvento, 'tpEvento')
+    if (!codigo && !getTagText(infEvento, 'nProt')) return
+    const seqRaw = getTagText(infEvento, 'nSeqEvento')
+    eventos.push({
+      tipo: classificarEvento(codigo),
+      codigoEvento: codigo,
+      descricao: descricaoTipoEvento(
+        codigo,
+        getTagText(infEvento, 'descEvento') || getTagText(infEvento, 'xEvento'),
+      ),
+      sequencial: seqRaw ? parseInt(seqRaw, 10) : undefined,
+      nProt:
+        getTagText(infRet, 'nProt') ||
+        getTagText(infEvento, 'nProt') ||
+        undefined,
+      dataEvento: getTagText(infEvento, 'dhEvento') || getTagText(infEvento, 'dhsRegEvento') || undefined,
+      dataRegistro:
+        getTagText(infRet, 'dhRegEvento') || getTagText(infEvento, 'dhsRegEvento') || undefined,
+      cStat: getTagText(infRet, 'cStat') || undefined,
+      xMotivo: getTagText(infRet, 'xMotivo') || getTagText(infEvento, 'xMotivo') || undefined,
+    })
+  })
+
+  // Eventos soltos: resEvento / evento sem proc (ex.: XML somente do retorno)
+  getAllTags(cleanXml, 'resEvento').forEach((bloco) => {
+    const codigo = getTagText(bloco, 'tpEvento')
+    if (!codigo) return
+    if (eventos.some((e) => e.codigoEvento === codigo && e.nProt && getTagText(bloco, 'nProt') === e.nProt))
+      return
+    const seqRaw = getTagText(bloco, 'nSeqEvento')
+    eventos.push({
+      tipo: classificarEvento(codigo),
+      codigoEvento: codigo,
+      descricao: descricaoTipoEvento(codigo, getTagText(bloco, 'descEvento') || getTagText(bloco, 'xEvento')),
+      sequencial: seqRaw ? parseInt(seqRaw, 10) : undefined,
+      nProt: getTagText(bloco, 'nProt') || undefined,
+      dataEvento: getTagText(bloco, 'dhEvento') || getTagText(bloco, 'dhsRegEvento') || undefined,
+      dataRegistro: getTagText(bloco, 'dhRegEvento') || getTagText(bloco, 'dhsRegEvento') || undefined,
+      cStat: getTagText(bloco, 'cStat') || undefined,
+      xMotivo: getTagText(bloco, 'xMotivo') || undefined,
+    })
+  })
+
+  // Totais do bloco ICMSTot
+  const totalBlock = getTagText(cleanXml, 'ICMSTot') || getTagText(cleanXml, 'total')
+  const toNum = (tag: string): number | undefined => {
+    const raw = getTagText(totalBlock, tag)
+    return raw ? parseFloat(raw) : undefined
+  }
+  const totais = {
+    vBC: toNum('vBC'),
+    vICMS: toNum('vICMS'),
+    vProd: toNum('vProd') ?? itens.reduce((s, i) => s + i.vProd, 0),
+    vFrete: toNum('vFrete'),
+    vSeg: toNum('vSeg'),
+    vDesc: toNum('vDesc'),
+    vII: toNum('vII'),
+    vIPI: toNum('vIPI'),
+    vPIS: toNum('vPIS'),
+    vCOFINS: toNum('vCOFINS'),
+    vOutro: toNum('vOutro'),
+    vNF: toNum('vNF') ?? vNF,
+  }
+
+  return {
+    naturezaOperacao: getTagText(cleanXml, 'natOp') || undefined,
+    emitente: extrairParticipante(getTagText(cleanXml, 'emit'), 'EMITENTE NÃO IDENTIFICADO'),
+    destinatario: extrairParticipante(getTagText(cleanXml, 'dest'), 'DESTINATÁRIO NÃO IDENTIFICADO'),
+    protocoloAutorizacao,
+    eventos,
+    totais,
+  }
+}
+
+function classificarEvento(codigo: string): EventoNFe['tipo'] {
+  if (codigo === '110111' || codigo === '110112') return 'CANC'
+  if (codigo === '110110') return 'CCe'
+  if (codigo.startsWith('2102')) return 'MANIFESTACAO'
+  return 'OUTRO'
 }
 
 // Defesa: o marcador de cota NUNCA deve ser re-parseado — significaria que o
@@ -122,6 +268,10 @@ export function parseNFeXml(xmlString: string, empresaAtivaCnpj: string): Docume
   const totalBlock = getTagText(cleanXml, 'total')
   const vNF = parseFloat(getTagText(totalBlock, 'vNF')) || itens.reduce((s, i) => s + i.vProd, 0)
 
+  // Espelho estruturado: protocolo de autorização, eventos, endereços e totais
+  // extraídos AGORA — sobrevivem ao descarte do XML bruto por cota.
+  const espelho = extrairEspelho(cleanXml, itens, vNF)
+
   return {
     id: chaveAcesso || `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     chaveAcesso,
@@ -139,5 +289,6 @@ export function parseNFeXml(xmlString: string, empresaAtivaCnpj: string): Docume
     xmlOriginal: cleanXml,
     itens,
     importadoEm: new Date().toISOString(),
+    espelho,
   }
 }
