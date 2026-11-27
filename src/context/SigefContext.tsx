@@ -477,8 +477,11 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }
 
   const resolverOcorrenciaManual = (ocorrenciaId: string) => {
+    const agora = new Date().toISOString()
     const atualizadas = store.ocorrencias.map((o) =>
-      o.id === ocorrenciaId ? { ...o, resolvido: true } : o,
+      o.id === ocorrenciaId
+        ? { ...o, resolvido: true, resolvidoPor: usuarioAtual?.nome ?? '—', resolvidoEm: agora }
+        : o,
     )
     atualizarStore({ ocorrencias: atualizadas })
     toast.success('Ocorrência de auditoria marcada como resolvida.')

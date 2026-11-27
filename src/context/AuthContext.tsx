@@ -11,7 +11,7 @@ import {
   existeAdministrador,
   hashSenha,
   limparSessao,
-  permissoesDoPerfil,
+  permissoesConhecidas,
   salvarPerfis,
   salvarSessao,
   salvarUsuarios,
@@ -55,6 +55,12 @@ interface AuthContextType {
     id: string,
     dados: { nome: string; descricao: string; permissoes: string[] },
   ) => void
+  salvarPerfil: (dados: {
+    id: string
+    nome: string
+    descricao: string
+    permissoes: string[]
+  }) => void
   excluirPerfil: (id: string) => { ok: boolean; motivo?: string }
 
   // Permissões
@@ -299,12 +305,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [perfis, usuarios],
   )
 
+  /** Salva (cria ou atualiza) um perfil — usado pela tela de Perfis. */
+  const salvarPerfil = useCallback(
+    (dados: { id: string; nome: string; descricao: string; permissoes: string[] }) => {
+      if (dados.id) {
+        editarPerfil(dados.id, dados)
+        return
+      }
+      const novo: Perfil = {
+        id: `perfil-${crypto.randomUUID()}`,
+        nome: dados.nome.trim(),
+        descricao: dados.descricao.trim(),
+        permissoes: permissoesConhecidas(dados.permissoes),
+        sistema: false,
+        atualizadoEm: new Date().toISOString(),
+      }
+      const novos = [...perfis, novo]
+      salvarPerfis(novos)
+      setPerfis(novos)
+    },
+    [perfis, editarPerfil],
+  )
+
   // ============ Permissões ============
 
   const temPermissao = useCallback(
     (chave: string) => {
       if (!usuarioAtual) return false
-      return permissoesDoPerfil(usuarioAtual.perfilId).includes(chave)
+      // 'painel' é a home: sempre visível para quem está logado
+      if (chave === 'tela-painel') return true
+      const doPerfil = perfis.find((p) => p.id === usuarioAtual.perfilId)?.permissoes ?? []
+      return doPerfil.includes(chave)
     },
     [usuarioAtual, perfis],
   )
@@ -326,6 +357,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       redefinirSenha,
       criarPerfil,
       editarPerfil,
+      salvarPerfil,
       excluirPerfil,
       temPermissao,
     }),
@@ -345,6 +377,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       redefinirSenha,
       criarPerfil,
       editarPerfil,
+      salvarPerfil,
       excluirPerfil,
       temPermissao,
     ],

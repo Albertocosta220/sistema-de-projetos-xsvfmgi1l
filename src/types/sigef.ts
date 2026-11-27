@@ -186,6 +186,9 @@ export interface OcorrenciaAuditoria {
   dataIdentificacao: string
   resolvido: boolean
   podeReprocessar: boolean
+  /** Usuário logado que resolveu/reprocessou a ocorrência (quando aplicável). */
+  resolvidoPor?: string
+  resolvidoEm?: string
 }
 
 export interface ConsultaDFeSefaz {

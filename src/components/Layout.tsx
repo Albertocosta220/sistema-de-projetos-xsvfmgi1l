@@ -83,8 +83,7 @@ export default function Layout() {
   // Fecha o drawer mobile a cada troca de rota
   useEffect(() => setMenuAberto(false), [location.pathname])
 
-  const nomePerfilAtual =
-    perfis.find((p) => p.id === usuarioAtual?.perfilId)?.nome ?? 'sem perfil'
+  const nomePerfilAtual = perfis.find((p) => p.id === usuarioAtual?.perfilId)?.nome ?? 'sem perfil'
 
   // Menu filtrado pelas permissões do perfil do usuário logado
   const gruposVisiveis = useMemo(
@@ -157,9 +156,7 @@ export default function Layout() {
             <span className="flex items-center gap-1.5 text-xs text-[var(--petroleo)] max-w-[180px] sm:max-w-none">
               <UserCircle2 aria-hidden="true" className="size-4 text-[var(--accent)] flex-none" />
               <span className="font-semibold truncate">{usuarioAtual?.nome}</span>
-              <span className="hidden md:inline text-[var(--sig-muted)]">
-                · {nomePerfilAtual}
-              </span>
+              <span className="hidden md:inline text-[var(--sig-muted)]">· {nomePerfilAtual}</span>
             </span>
             <Button
               type="button"
