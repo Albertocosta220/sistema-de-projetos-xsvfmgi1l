@@ -63,7 +63,7 @@ interface SigefContextType {
   importarProdutosPlanilha: (
     produtos: Produto[],
     meta?: { itensParaRevisao?: number; abaUtilizada?: string },
-  ) => { importados: number; ignorados: number; sinalizados: number }
+  ) => { criados: number; atualizados: number; ignorados: number; sinalizados: number }
   salvarDePara: (vinculo: Omit<DeParaVigente, 'id' | 'atualizadoEm'>) => void
   excluirDePara: (id: string) => void
 
@@ -350,76 +350,136 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }
 
   // Importação de cadastro de itens por planilha (Sucatas Cadastro)
+  // Upsert por código de inventário: existente → atualiza, novo → cria.
   const importarProdutosPlanilha = (
     produtosImportados: Produto[],
     meta?: { itensParaRevisao?: number; abaUtilizada?: string },
-  ): { importados: number; ignorados: number; sinalizados: number } => {
-    // Upsert por código de inventário: NUNCA sobrescreve produto já existente
-    const existentes = new Map(
-      store.produtos.map((p) => [p.codigoInventario.trim().toUpperCase(), p]),
-    )
-    const novos: Produto[] = []
-    let ignorados = 0
-    produtosImportados.forEach((p) => {
-      const chave = p.codigoInventario.trim().toUpperCase()
-      if (existentes.has(chave)) {
-        ignorados++
-      } else {
-        existentes.set(chave, p)
-        novos.push(p)
-      }
-    })
-
-    if (novos.length === 0) {
-      toast.info(
-        `Nenhum produto novo: todos os ${ignorados} código(s) da planilha já existem no catálogo.`,
+  ): { criados: number; atualizados: number; ignorados: number; sinalizados: number } => {
+    const criarOuAtualizar = (
+      anteriores: Produto[],
+    ): { lista: Produto[]; criados: number; atualizados: number; ignorados: number } => {
+      const mapa = new Map(
+        anteriores.map((p) => [p.codigoInventario.trim().toUpperCase(), p] as const),
       )
-      return { importados: 0, ignorados, sinalizados: 0 }
+      let criados = 0
+      let atualizados = 0
+      let ignorados = 0
+      produtosImportados.forEach((p) => {
+        const chave = p.codigoInventario.trim().toUpperCase()
+        const existente = mapa.get(chave)
+        if (existente) {
+          // Item idêntico (mesmos campos fiscais): preserva o cadastro atual
+          const igual =
+            existente.descricao === p.descricao &&
+            existente.ncm === p.ncm &&
+            existente.unidade === p.unidade &&
+            existente.cstIcms === p.cstIcms &&
+            existente.cstPisCofins === p.cstPisCofins
+          if (igual) {
+            ignorados++
+          } else {
+            mapa.set(chave, { ...p }) // atualiza com os dados da planilha
+            atualizados++
+          }
+        } else {
+          mapa.set(chave, { ...p })
+          criados++
+        }
+      })
+      return { lista: [...mapa.values()], criados, atualizados, ignorados }
     }
 
-    // Ocorrência de auditoria A13 para os itens sinalizados para revisão
-    const sinalizados = novos.filter((p) => p.revisar).length
-    const novasOcorrencias: OcorrenciaAuditoria[] =
-      sinalizados > 0
-        ? [
-            {
-              id: `oco-a13-import-${Date.now()}`,
-              regraCodigo: 'A13',
-              regraNome: 'Importação de planilha — itens para revisão',
-              severidade: 'AVISO',
-              descricao: `Importação de planilha${
-                meta?.abaUtilizada ? ` (aba "${meta.abaUtilizada}")` : ''
-              }: ${sinalizados} de ${novos.length} item(ns) importado(s) com campo "SEM CORRESPONDÊNCIA" ou dados incompletos: ${novos
-                .filter((p) => p.revisar)
-                .map((p) => p.codigoInventario)
-                .join(', ')}.`,
-              baseLegal:
-                'Lei 11.196/2005 arts. 47/48; TIPI (Decreto 11.158/2022); Guia Prático EFD Reg. 0200',
-              dataIdentificacao: new Date().toISOString(),
-              resolvido: false,
-              podeReprocessar: false,
-            },
-          ]
-        : []
+    const {
+      lista: novosProdutos,
+      criados,
+      atualizados,
+      ignorados,
+    } = criarOuAtualizar(store.produtos)
+
+    if (criados === 0 && atualizados === 0) {
+      toast.info(
+        `Nenhuma alteração: todos os ${ignorados} código(s) da planilha já existem idênticos no catálogo.`,
+      )
+      return { criados: 0, atualizados: 0, ignorados, sinalizados: 0 }
+    }
+
+    const sinalizados = produtosImportados.filter((p) => p.revisar).length
+    const nomeAutor = usuarioAtual?.nome ?? usuarioAtual?.login ?? '—'
+    const codigosRevisao = produtosImportados
+      .filter((p) => p.revisar)
+      .map((p) => p.codigoInventario)
+      .join(', ')
+
+    // Ocorrência de auditoria A13: importa/revisa com AUTOR (usuário logado)
+    const ocorrenciaA13: OcorrenciaAuditoria = {
+      id: `oco-a13-import-${Date.now()}`,
+      regraCodigo: 'A13',
+      regraNome: 'Importação de planilha — itens para revisão',
+      severidade: 'AVISO',
+      descricao: `Importação de planilha${
+        meta?.abaUtilizada ? ` (aba "${meta.abaUtilizada}")` : ''
+      } por ${nomeAutor}: ${criados} item(ns) criado(s), ${atualizados} atualizado(s)${
+        sinalizados > 0
+          ? `, ${sinalizados} com campo "SEM CORRESPONDÊNCIA" ou dados incompletos: ${codigosRevisao}`
+          : ''
+      }.`,
+      baseLegal:
+        'Lei 11.196/2005 arts. 47/48; TIPI (Decreto 11.158/2022); Guia Prático EFD Reg. 0200',
+      dataIdentificacao: new Date().toISOString(),
+      resolvido: false,
+      podeReprocessar: false,
+      resolvidoPor: undefined,
+    }
 
     // Kardex e de-para recalculados com o catálogo ampliado (produtos novos não
-    // têm movimento; entram no inventário com saldo zero via calcularItensInventario)
-    const novosProdutos = [...store.produtos, ...novos]
+    // têm movimento; entram no inventário com saldo zero via calcularItensInventario,
+    // SEM apagar saldos/contagens já existentes dos demais)
     const resultado = reprocessarKardexCronologico(novosProdutos, store.documentos, store.dePara)
 
     atualizarStore({
       produtos: novosProdutos,
       documentos: resultado.documentosAtualizados,
       kardex: resultado.kardex,
-      ocorrencias: [...resultado.ocorrencias, ...novasOcorrencias],
+      ocorrencias: [...resultado.ocorrencias, ocorrenciaA13],
+      // Inventário (Bloco H): a competência em aberto passa a listar os itens
+      // importados com quantidade zero — fechamentos existentes são preservados
+      fechamentos: store.fechamentos.map((f) =>
+        f.status === 'ABERTA'
+          ? {
+              ...f,
+              itensInventario: [
+                ...f.itensInventario,
+                ...produtosImportados
+                  .filter(
+                    (p) =>
+                      !f.itensInventario.some(
+                        (it) => it.codigoInventario === p.codigoInventario.trim().toUpperCase(),
+                      ),
+                  )
+                  .map((p) => ({
+                    codigoInventario: p.codigoInventario,
+                    descricao: p.descricao,
+                    unidade: p.unidade,
+                    quantidadeSistema: 0,
+                    custoMedioSistema: 0,
+                    valorTotalSistema: 0,
+                    quantidadeContada: 0,
+                    diferencaQuantidade: 0,
+                    diferencaValor: 0,
+                    statusAjuste: 'SEM_DIVERGENCIA' as const,
+                  })),
+              ],
+            }
+          : f,
+      ),
     })
 
     toast.success(
-      `Importação concluída: ${novos.length} produto(s) criado(s)${
+      `Importação concluída: ${criados} produto(s) criado(s), ${atualizados} atualizado(s)${
         ignorados > 0 ? `, ${ignorados} já existente(s) preservado(s)` : ''
       }${sinalizados > 0 ? `, ${sinalizados} para revisão (régua A13)` : ''}.`,
     )
-    return { importados: novos.length, ignorados, sinalizados }
+    return { criados, atualizados, ignorados, sinalizados }
   }
 
   // Inventário e Fechamento de Competência

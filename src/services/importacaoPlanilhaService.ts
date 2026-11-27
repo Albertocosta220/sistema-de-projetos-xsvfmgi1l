@@ -12,6 +12,47 @@ export interface ResultadoImportacaoPlanilha {
   colunasIgnoradas: string[]
 }
 
+/** Resultado da comparação da planilha com o catálogo existente (prévia do importador). */
+export interface ComparacaoCatalogo {
+  novos: Produto[]
+  atualizados: Produto[]
+  inalterados: number
+}
+
+/**
+ * Compara os produtos lidos da planilha com o catálogo (por código de inventário):
+ * novo → cria; existente com dados divergentes → atualiza; idêntico → preserva.
+ * Usada tanto na prévia (UI) quanto no upsert do SigefContext.
+ */
+export function compararComCatalogo(
+  produtosImportados: Produto[],
+  catalogo: Produto[],
+): ComparacaoCatalogo {
+  const mapa = new Map(catalogo.map((p) => [p.codigoInventario.trim().toUpperCase(), p] as const))
+  const novos: Produto[] = []
+  const atualizados: Produto[] = []
+  let inalterados = 0
+
+  produtosImportados.forEach((p) => {
+    const chave = p.codigoInventario.trim().toUpperCase()
+    const existente = mapa.get(chave)
+    if (!existente) {
+      novos.push(p)
+    } else {
+      const igual =
+        existente.descricao === p.descricao &&
+        existente.ncm === p.ncm &&
+        existente.unidade === p.unidade &&
+        existente.cstIcms === p.cstIcms &&
+        existente.cstPisCofins === p.cstPisCofins
+      if (igual) inalterados++
+      else atualizados.push(p)
+    }
+  })
+
+  return { novos, atualizados, inalterados }
+}
+
 export const ABA_SUCATAS = 'Sucatas Cadastro'
 
 /** Marcadores (em qualquer coluna) que marcam o item para revisão manual. */
@@ -90,9 +131,7 @@ export async function lerPlanilhaSucatas(file: File): Promise<ResultadoImportaca
 
   const campo = (alvos: string[]): string | undefined => {
     const achado = casarCabecalho(alvos, nomesNorm)
-    return achado
-      ? disponiveis.find((d) => d.norm === achado)?.original
-      : undefined
+    return achado ? disponiveis.find((d) => d.norm === achado)?.original : undefined
   }
 
   const colCodigo = campo(['COD_ITEM', 'Código', 'CODIGO_ITEM', 'COD_PROD'])

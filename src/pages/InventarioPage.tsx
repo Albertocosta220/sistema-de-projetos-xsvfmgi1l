@@ -340,6 +340,11 @@ export default function InventarioPage() {
               <TableBody>
                 {itensContagem.map((it) => {
                   const temDivergencia = Math.abs(it.diferencaQuantidade) > 0.0001
+                  // Itens importados por planilha com pendência fiscal ganham badge REVISAR
+                  const produtoOrigem = produtos.find(
+                    (p) => p.codigoInventario === it.codigoInventario,
+                  )
+                  const revisar = produtoOrigem?.revisar
                   return (
                     <TableRow
                       key={it.codigoInventario}
@@ -349,7 +354,19 @@ export default function InventarioPage() {
                         {it.codigoInventario}
                       </TableCell>
                       <TableCell className="text-xs font-medium max-w-[200px] truncate">
-                        {it.descricao}
+                        <div className="flex flex-col gap-1">
+                          <span>{it.descricao}</span>
+                          {revisar && (
+                            <Badge
+                              variant="outline"
+                              className="w-fit border-amber-400 bg-amber-50 text-amber-800 text-[10px] gap-1"
+                              title={produtoOrigem?.observacaoImportacao}
+                            >
+                              <AlertTriangle className="size-3" />
+                              <span>REVISAR</span>
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs font-bold">{it.unidade}</TableCell>
                       <TableCell className="text-right font-mono text-xs">

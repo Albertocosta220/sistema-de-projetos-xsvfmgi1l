@@ -39,6 +39,7 @@ import { toast } from 'sonner'
 import { Produto } from '@/types/sigef'
 import { CNPJ_REGRA_CFOP_LEGADO } from '@/services/regrasCfopService'
 import {
+  compararComCatalogo,
   lerPlanilhaSucatas,
   ResultadoImportacaoPlanilha,
 } from '@/services/importacaoPlanilhaService'
@@ -74,6 +75,13 @@ export default function ProdutosPage() {
   const inputPlanilhaRef = useRef<HTMLInputElement>(null)
   const [importando, setImportando] = useState(false)
   const [resumoImportacao, setResumoImportacao] = useState<ResultadoImportacaoPlanilha | null>(null)
+  // Prévia: planilha lida + comparação com o catálogo, aguardando confirmação
+  const [previa, setPrevia] = useState<{
+    resultado: ResultadoImportacaoPlanilha
+    novos: Produto[]
+    atualizados: Produto[]
+    inalterados: number
+  } | null>(null)
 
   const processarArquivoPlanilha = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -82,14 +90,8 @@ export default function ProdutosPage() {
     setImportando(true)
     try {
       const resultado = await lerPlanilhaSucatas(file)
-      const r = importarProdutosPlanilha(resultado.produtos, {
-        itensParaRevisao: resultado.itensParaRevisao,
-        abaUtilizada: resultado.abaUtilizada,
-      })
-      setResumoImportacao(resultado)
-      if (r.importados === 0) {
-        toast.info(`Nenhum produto novo importado (${r.ignorados} já existente(s)).`)
-      }
+      const cmp = compararComCatalogo(resultado.produtos, produtos)
+      setPrevia({ resultado, ...cmp })
     } catch (err) {
       console.error(err)
       toast.error(
@@ -97,6 +99,20 @@ export default function ProdutosPage() {
       )
     } finally {
       setImportando(false)
+    }
+  }
+
+  const confirmarImportacao = () => {
+    if (!previa) return
+    const { resultado } = previa
+    const r = importarProdutosPlanilha(resultado.produtos, {
+      itensParaRevisao: resultado.itensParaRevisao,
+      abaUtilizada: resultado.abaUtilizada,
+    })
+    setResumoImportacao(resultado)
+    setPrevia(null)
+    if (r.criados === 0 && r.atualizados === 0) {
+      toast.info(`Nenhum produto novo importado (${r.ignorados} já existente(s) idênticos).`)
     }
   }
 
@@ -607,6 +623,110 @@ export default function ProdutosPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal de Prévia da Importação de Planilha — confirma antes de gravar */}
+      <Dialog open={!!previa} onOpenChange={(open) => !open && setPrevia(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="size-5 text-teal-700" />
+              Prévia da Importação — aba "{previa?.resultado.abaUtilizada}"
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Confira os números abaixo antes de gravar. Nada é salvo até você confirmar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-3 gap-3 py-2 text-center">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="text-xl font-bold text-emerald-700">{previa?.novos.length ?? 0}</div>
+              <div className="text-[11px] text-emerald-800 font-semibold">Novos produtos</div>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-xl font-bold text-blue-700">
+                {previa?.atualizados.length ?? 0}
+              </div>
+              <div className="text-[11px] text-blue-800 font-semibold">Atualizados</div>
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="text-xl font-bold text-amber-700">
+                {previa?.resultado.itensParaRevisao ?? 0}
+              </div>
+              <div className="text-[11px] text-amber-800 font-semibold">Para revisão</div>
+            </div>
+          </div>
+
+          {previa && (
+            <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>NCM</TableHead>
+                    <TableHead>Unid.</TableHead>
+                    <TableHead>Situação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {previa.resultado.produtos.map((p) => {
+                    const ehNovo = previa.novos.some(
+                      (n) => n.codigoInventario === p.codigoInventario,
+                    )
+                    const ehAtualizado = previa.atualizados.some(
+                      (a) => a.codigoInventario === p.codigoInventario,
+                    )
+                    return (
+                      <TableRow key={p.codigoInventario}>
+                        <TableCell className="font-mono text-xs font-bold">
+                          {p.codigoInventario}
+                        </TableCell>
+                        <TableCell className="text-xs max-w-[220px] truncate">
+                          {p.descricao}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{p.ncm || '—'}</TableCell>
+                        <TableCell className="text-xs">{p.unidade}</TableCell>
+                        <TableCell>
+                          {p.revisar ? (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-400 bg-amber-50 text-amber-800 text-[10px]"
+                              title={p.observacaoImportacao}
+                            >
+                              Revisar
+                            </Badge>
+                          ) : ehNovo ? (
+                            <Badge className="bg-emerald-600 text-white text-[10px]">Novo</Badge>
+                          ) : ehAtualizado ? (
+                            <Badge className="bg-blue-600 text-white text-[10px]">Atualizar</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Já existe
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrevia(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmarImportacao}
+              className="bg-[#0E7C86] hover:bg-[#0B636B] text-white"
+            >
+              <Check className="size-4 mr-1" />
+              Confirmar importação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal Cadastro/Edição de Produto */}
       <Dialog open={modalProdutoOpen} onOpenChange={setModalProdutoOpen}>

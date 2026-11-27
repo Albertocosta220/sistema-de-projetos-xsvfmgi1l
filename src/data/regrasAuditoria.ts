@@ -111,7 +111,8 @@ export const REGUAS_AUDITORIA: DefinicaoRegra[] = [
     nome: 'Importação de planilha — itens para revisão',
     descricao:
       'Item do cadastro importado por planilha que veio com campo "SEM CORRESPONDÊNCIA" ou dados fiscais incompletos, exigindo revisão manual do enquadramento.',
-    baseLegal: 'Lei 11.196/2005 arts. 47/48; TIPI (Decreto 11.158/2022); Guia Prático EFD Reg. 0200',
+    baseLegal:
+      'Lei 11.196/2005 arts. 47/48; TIPI (Decreto 11.158/2022); Guia Prático EFD Reg. 0200',
     severidadePadrao: 'AVISO',
   },
 ]
