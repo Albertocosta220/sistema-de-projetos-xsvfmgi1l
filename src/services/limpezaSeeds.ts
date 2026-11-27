@@ -141,6 +141,7 @@ export function criarStoreVazia(empresa: Empresa): DadosEmpresaStore {
     consultasDFe: [],
     ultimoNSU: 0,
     competenciaAtiva: undefined,
+    regrasDesqualificacao: [],
   }
 }
 
@@ -164,6 +165,9 @@ export function normalizarStore(dados: DadosEmpresaStore): DadosEmpresaStore {
     consultasDFe: Array.isArray(dados?.consultasDFe) ? dados.consultasDFe : [],
     ultimoNSU: typeof dados?.ultimoNSU === 'number' ? dados.ultimoNSU : 0,
     competenciaAtiva: dados?.competenciaAtiva || undefined,
+    regrasDesqualificacao: Array.isArray(dados?.regrasDesqualificacao)
+      ? dados.regrasDesqualificacao
+      : [],
   }
 }
 

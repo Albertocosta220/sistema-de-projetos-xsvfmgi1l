@@ -19,6 +19,7 @@ import {
   OcorrenciaAuditoria,
   Produto,
   RegraCfop,
+  RegraDesqualificacao,
 } from '@/types/sigef'
 import {
   carregarRegrasCfop,
@@ -47,6 +48,12 @@ import { consultarDFeSimulado } from '@/services/sefazDfeSimulator'
 import { useAuth } from '@/context/AuthContext'
 import { REGUAS_AUDITORIA } from '@/data/regrasAuditoria'
 import { coletarParesUnicos, montarVinculosAutomaticos } from '@/services/vinculoAutomaticoService'
+import {
+  aplicarRegrasDesqualificacao,
+  chaveRegraDesqualificacao,
+  itensDocumento,
+  novaRegraDesqualificacao,
+} from '@/services/desqualificacaoService'
 import { certificadoAtivo, formatarCnpj, CertificadoA1 } from '@/services/certificadoService'
 import { toast } from 'sonner'
 
@@ -96,6 +103,11 @@ interface SigefContextType {
   }
   cancelarNFe: (docId: string, justificativa: string) => void
   reprocessarNotas: () => void
+
+  // Desqualificação para inventário (marca "não gera inventário")
+  regrasDesqualificacao: RegraDesqualificacao[]
+  desqualificarNota: (docId: string) => { regra: RegraDesqualificacao | null; afetados: number }
+  requalificarNota: (docId: string) => void
 
   // Competência ativa (período da última importação — persistido por empresa)
   competenciaAtiva: string
@@ -509,6 +521,143 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     toast.success('Reprocessamento de todos os documentos concluído.')
   }
 
+  // ============ Desqualificação para inventário ("não gera inventário") ============
+  //
+  // A regra é persistida por empresa (CNPJ emitente + cProd normalizado) e a marca
+  // no documento é DERIVADA dela em toda leitura/reação da store — assim a marca
+  // sobrevive a logout/F5 e qualquer importação futura do mesmo CNPJ + produto já
+  // entra desqualificada. Requalificar (excluir a regra) desmarca todos de uma vez.
+
+  /** Documentos com a marca desqualificadaParaInventario derivada das regras. */
+  const documentosComRegras = useMemo(
+    () => aplicarRegrasDesqualificacao(store.documentos, store.regrasDesqualificacao),
+    [store.documentos, store.regrasDesqualificacao],
+  )
+
+  /**
+   * Desqualifica a nota para o inventário: cria/usa a regra por item (CNPJ
+   * emitente + cProd) e propaga a marca para TODAS as notas do mesmo CNPJ com
+   * o mesmo produto. Grava ocorrência A13 com o autor (usuário logado) e
+   * recalcula o Kardex — os itens desqualificados ficam fora do Bloco H.
+   */
+  const desqualificarNota = (docId: string) => {
+    const doc = store.documentos.find((d) => d.id === docId || d.chaveAcesso === docId)
+    if (!doc) return { regra: null, afetados: 0 }
+
+    const cnpjLimpo = (doc.cnpjEmitente || '').replace(/\D/g, '')
+    const itens = itensDocumento(doc)
+    if (!cnpjLimpo || itens.length === 0) {
+      toast.error(
+        'Não foi possível desqualificar: documento sem emitente ou sem itens com código de produto.',
+      )
+      return { regra: null, afetados: 0 }
+    }
+
+    const agora = new Date().toISOString()
+    const nomeAutor = usuarioAtual?.nome ?? usuarioAtual?.login ?? '—'
+    const chavesExistentes = new Set(
+      store.regrasDesqualificacao.map((r) => chaveRegraDesqualificacao(r.cnpjEmitente, r.cProd)),
+    )
+
+    const novasRegras = [...store.regrasDesqualificacao]
+    itens.forEach((it) => {
+      if (chavesExistentes.has(chaveRegraDesqualificacao(cnpjLimpo, it.cProd))) return
+      novasRegras.push(
+        novaRegraDesqualificacao({
+          cnpjEmitente: cnpjLimpo,
+          razaoSocialEmitente: doc.nomeEmitente,
+          cProd: it.cProd,
+          xProd: it.xProd,
+          criadoPor: nomeAutor,
+          chaveDocOrigem: doc.chaveAcesso,
+        }),
+      )
+    })
+
+    if (novasRegras.length === store.regrasDesqualificacao.length) {
+      toast.info('Todos os itens desta nota já estão desqualificados para o inventário.')
+      return { regra: null, afetados: 0 }
+    }
+
+    const documentosMarcados = aplicarRegrasDesqualificacao(store.documentos, novasRegras)
+    const afetados = documentosMarcados.filter((d) => d.desqualificadaParaInventario).length
+
+    const resultado = reprocessarKardexCronologico(store.produtos, documentosMarcados, store.dePara)
+
+    const ocorrencia: OcorrenciaAuditoria = {
+      id: `oco-a13-desqual-${Date.now()}`,
+      regraCodigo: 'A13',
+      regraNome: 'Desqualificação para inventário — itens fora do Bloco H',
+      severidade: 'INFO',
+      descricao: `Desqualificação para inventário pela NF-e nº ${doc.numero} (série ${doc.serie}, chave ${doc.chaveAcesso}) por ${nomeAutor}: emitente ${cnpjLimpo} + produto(s) ${itens
+        .map((i) => i.cProd)
+        .join(', ')} — ${afetados} documento(s) marcado(s) "não gera inventário".`,
+      baseLegal: REGUAS_AUDITORIA.find((r) => r.codigo === 'A13')?.baseLegal || '',
+      documentoRef: doc.numero,
+      chaveAcessoRef: doc.chaveAcesso,
+      dataIdentificacao: agora,
+      resolvido: false,
+      podeReprocessar: false,
+    }
+
+    atualizarStore({
+      regrasDesqualificacao: novasRegras,
+      documentos: resultado.documentosAtualizados,
+      kardex: resultado.kardex,
+      ocorrencias: [...resultado.ocorrencias, ocorrencia],
+    })
+
+    toast.success(
+      `Nota desqualificada para o inventário: ${afetados} documento(s) do emitente ${cnpjLimpo} com o(s) mesmo(s) produto(s) ficam fora do Bloco H.`,
+    )
+    return { regra: novasRegras[novasRegras.length - 1] ?? null, afetados }
+  }
+
+  /** Requalifica: exclui as regras ligadas à nota e a desmarca em todos os documentos. */
+  const requalificarNota = (docId: string) => {
+    const doc = store.documentos.find((d) => d.id === docId || d.chaveAcesso === docId)
+    if (!doc) return
+    const cnpjLimpo = (doc.cnpjEmitente || '').replace(/\D/g, '')
+    const itens = itensDocumento(doc)
+    if (!cnpjLimpo || itens.length === 0) return
+
+    const chavesDaNota = new Set(itens.map((it) => chaveRegraDesqualificacao(cnpjLimpo, it.cProd)))
+    const restantes = store.regrasDesqualificacao.filter(
+      (r) => !chavesDaNota.has(chaveRegraDesqualificacao(r.cnpjEmitente, r.cProd)),
+    )
+    if (restantes.length === store.regrasDesqualificacao.length) {
+      toast.info('Nenhuma regra de desqualificação ligada a esta nota.')
+      return
+    }
+
+    const documentosMarcados = aplicarRegrasDesqualificacao(store.documentos, restantes)
+    const resultado = reprocessarKardexCronologico(store.produtos, documentosMarcados, store.dePara)
+
+    const nomeAutor = usuarioAtual?.nome ?? usuarioAtual?.login ?? '—'
+    const ocorrencia: OcorrenciaAuditoria = {
+      id: `oco-a13-requal-${Date.now()}`,
+      regraCodigo: 'A13',
+      regraNome: 'Desqualificação para inventário — itens fora do Bloco H',
+      severidade: 'INFO',
+      descricao: `Requalificação para inventário pela NF-e nº ${doc.numero} (chave ${doc.chaveAcesso}) por ${nomeAutor}: regra(s) do emitente ${cnpjLimpo} removida(s) — documentos voltam ao Bloco H.`,
+      baseLegal: REGUAS_AUDITORIA.find((r) => r.codigo === 'A13')?.baseLegal || '',
+      documentoRef: doc.numero,
+      chaveAcessoRef: doc.chaveAcesso,
+      dataIdentificacao: new Date().toISOString(),
+      resolvido: false,
+      podeReprocessar: false,
+    }
+
+    atualizarStore({
+      regrasDesqualificacao: restantes,
+      documentos: resultado.documentosAtualizados,
+      kardex: resultado.kardex,
+      ocorrencias: [...resultado.ocorrencias, ocorrencia],
+    })
+
+    toast.success('Regras removidas: os documentos voltam a gerar inventário (Bloco H).')
+  }
+
   // Importação de cadastro de itens por planilha (Sucatas Cadastro)
   // Upsert por código de inventário: existente → atualiza, novo → cria.
   const importarProdutosPlanilha = (
@@ -918,8 +1067,11 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         cadastrarOuEditarEmpresa,
         produtos: store.produtos,
         deParaList: store.dePara,
-        documentos: store.documentos,
+        documentos: documentosComRegras,
         kardex: store.kardex,
+        regrasDesqualificacao: store.regrasDesqualificacao,
+        desqualificarNota,
+        requalificarNota,
         fechamentos: store.fechamentos,
         ocorrencias: store.ocorrencias,
         consultasDFe: store.consultasDFe,

@@ -2,7 +2,14 @@
 // eventos como cancelamento/CCe/manifestação, endereços e totais) no momento
 // da importação — o espelho da tela Importar lê desses dados estruturados,
 // funcionando mesmo depois de o XML bruto ser descartado do localStorage.
-import { DocumentoFiscal, EspelhoNFe, EventoNFe, ParticipanteNFe, ItemNFe, TipoOperacaoNFe } from '@/types/sigef'
+import {
+  DocumentoFiscal,
+  EspelhoNFe,
+  EventoNFe,
+  ParticipanteNFe,
+  ItemNFe,
+  TipoOperacaoNFe,
+} from '@/types/sigef'
 import { MARCADOR_XML_COMPACTADO } from './storageService'
 
 // Helper simples e resiliente para extrair tags XML (funciona com namespace ou sem)
@@ -105,11 +112,9 @@ export function extrairEspelho(xml: string, itens: ItemNFe[], vNF: number): Espe
         getTagText(infEvento, 'descEvento') || getTagText(infEvento, 'xEvento'),
       ),
       sequencial: seqRaw ? parseInt(seqRaw, 10) : undefined,
-      nProt:
-        getTagText(infRet, 'nProt') ||
-        getTagText(infEvento, 'nProt') ||
-        undefined,
-      dataEvento: getTagText(infEvento, 'dhEvento') || getTagText(infEvento, 'dhsRegEvento') || undefined,
+      nProt: getTagText(infRet, 'nProt') || getTagText(infEvento, 'nProt') || undefined,
+      dataEvento:
+        getTagText(infEvento, 'dhEvento') || getTagText(infEvento, 'dhsRegEvento') || undefined,
       dataRegistro:
         getTagText(infRet, 'dhRegEvento') || getTagText(infEvento, 'dhsRegEvento') || undefined,
       cStat: getTagText(infRet, 'cStat') || undefined,
@@ -121,17 +126,25 @@ export function extrairEspelho(xml: string, itens: ItemNFe[], vNF: number): Espe
   getAllTags(cleanXml, 'resEvento').forEach((bloco) => {
     const codigo = getTagText(bloco, 'tpEvento')
     if (!codigo) return
-    if (eventos.some((e) => e.codigoEvento === codigo && e.nProt && getTagText(bloco, 'nProt') === e.nProt))
+    if (
+      eventos.some(
+        (e) => e.codigoEvento === codigo && e.nProt && getTagText(bloco, 'nProt') === e.nProt,
+      )
+    )
       return
     const seqRaw = getTagText(bloco, 'nSeqEvento')
     eventos.push({
       tipo: classificarEvento(codigo),
       codigoEvento: codigo,
-      descricao: descricaoTipoEvento(codigo, getTagText(bloco, 'descEvento') || getTagText(bloco, 'xEvento')),
+      descricao: descricaoTipoEvento(
+        codigo,
+        getTagText(bloco, 'descEvento') || getTagText(bloco, 'xEvento'),
+      ),
       sequencial: seqRaw ? parseInt(seqRaw, 10) : undefined,
       nProt: getTagText(bloco, 'nProt') || undefined,
       dataEvento: getTagText(bloco, 'dhEvento') || getTagText(bloco, 'dhsRegEvento') || undefined,
-      dataRegistro: getTagText(bloco, 'dhRegEvento') || getTagText(bloco, 'dhsRegEvento') || undefined,
+      dataRegistro:
+        getTagText(bloco, 'dhRegEvento') || getTagText(bloco, 'dhsRegEvento') || undefined,
       cStat: getTagText(bloco, 'cStat') || undefined,
       xMotivo: getTagText(bloco, 'xMotivo') || undefined,
     })
@@ -161,7 +174,10 @@ export function extrairEspelho(xml: string, itens: ItemNFe[], vNF: number): Espe
   return {
     naturezaOperacao: getTagText(cleanXml, 'natOp') || undefined,
     emitente: extrairParticipante(getTagText(cleanXml, 'emit'), 'EMITENTE NÃO IDENTIFICADO'),
-    destinatario: extrairParticipante(getTagText(cleanXml, 'dest'), 'DESTINATÁRIO NÃO IDENTIFICADO'),
+    destinatario: extrairParticipante(
+      getTagText(cleanXml, 'dest'),
+      'DESTINATÁRIO NÃO IDENTIFICADO',
+    ),
     protocoloAutorizacao,
     eventos,
     totais,

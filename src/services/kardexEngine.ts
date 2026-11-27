@@ -247,6 +247,10 @@ export function reprocessarKardexCronologico(
       const doc = ev.doc
       const isCancelado = doc.status === 'CANCELADO'
 
+      // Documento desqualificado para inventário ("não gera inventário"):
+      // fica fora do Kardex e, portanto, da contagem do Bloco H (Regra A13).
+      if (doc.desqualificadaParaInventario) return
+
       // Se documento não está processado ou cancelado, não gera kardex direto (exceto se for cancelado gerando estorno)
       if (doc.status !== 'PROCESSADO' && !isCancelado) return
 

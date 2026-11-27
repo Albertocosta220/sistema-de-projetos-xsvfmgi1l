@@ -9,10 +9,12 @@ import {
   CheckCircle,
   Copy,
   FileCode,
+  FileSearch,
   FolderOpen,
   Info,
   RefreshCw,
   Search,
+  ShieldOff,
   Trash2,
   Upload,
 } from 'lucide-react'
@@ -42,10 +44,21 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { DocumentoFiscal } from '@/types/sigef'
 import { useAuth } from '@/context/AuthContext'
+import { EspelhoNFeDialogBody } from '@/components/EspelhoNFe'
+import { DialogoDesqualificarNota } from '@/components/DialogoDesqualificarNota'
+import { MARCADOR_XML_COMPACTADO } from '@/services/storageService'
 
 export default function ImportarPage() {
-  const { documentos, importarXmlsEmLote, cancelarNFe, reprocessarNotas, periodoAtivo } = useSigef()
-  const { temPermissao } = useAuth()
+  const {
+    documentos,
+    importarXmlsEmLote,
+    cancelarNFe,
+    reprocessarNotas,
+    periodoAtivo,
+    desqualificarNota,
+    requalificarNota,
+  } = useSigef()
+  const { temPermissao, usuarioAtual } = useAuth()
   const podeProcessar = temPermissao('acao-processar-notas')
 
   // Período da importação (bug 2): o que o usuário informar aqui fica gravado
@@ -61,6 +74,8 @@ export default function ImportarPage() {
   const [docSelecionado, setDocSelecionado] = useState<DocumentoFiscal | null>(null)
   const [docParaCancelar, setDocParaCancelar] = useState<DocumentoFiscal | null>(null)
   const [justificativaCancelamento, setJustificativaCancelamento] = useState('')
+  const [docParaDesqualificar, setDocParaDesqualificar] = useState<DocumentoFiscal | null>(null)
+  const [docEspelho, setDocEspelho] = useState<DocumentoFiscal | null>(null)
 
   const fileInputLoteRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -120,6 +135,28 @@ export default function ImportarPage() {
     cancelarNFe(docParaCancelar.id, justificativaCancelamento)
     setDocParaCancelar(null)
     setJustificativaCancelamento('')
+  }
+
+  const confirmarDesqualificacao = () => {
+    if (!docParaDesqualificar) return
+    const res = desqualificarNota(docParaDesqualificar.id)
+    setDocParaDesqualificar(null)
+    if (!res.regra) {
+      toast.error(
+        'Não foi possível desqualificar: a nota não possui itens com código identificável.',
+      )
+      return
+    }
+    toast.success(
+      `Nota ${docParaDesqualificar.numero} desqualificada para o Inventário — ${res.afetados} documento(s) do mesmo emitente/produto marcado(s) como "não gera inventário".`,
+    )
+  }
+
+  const confirmarRequalificacao = (doc: DocumentoFiscal) => {
+    requalificarNota(doc.id)
+    toast.success(
+      `Nota ${doc.numero} requalificada — volta a gerar Inventário/Kardex (regras do emitente/produto removidas).`,
+    )
   }
 
   // Filtragem
@@ -474,6 +511,19 @@ export default function ImportarPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {getStatusBadge(doc.status)}
+                          {doc.desqualificadaParaInventario && (
+                            <div className="mt-1">
+                              <Badge className="bg-teal-100 text-teal-800 border border-teal-300 text-[10px] flex items-center gap-1 w-fit">
+                                <ShieldOff className="size-3" aria-hidden="true" />
+                                Desqualificada p/ Inventário
+                              </Badge>
+                              {doc.desqualificadaPor && (
+                                <div className="text-[10px] text-teal-700/80 mt-0.5">
+                                  por {doc.desqualificadaPor}
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {doc.motivoErro && (
                             <div className="text-[10px] text-rose-600 mt-0.5 truncate max-w-[160px]">
                               {doc.motivoErro}
@@ -503,6 +553,50 @@ export default function ImportarPage() {
                             >
                               Ver Detalhes
                             </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+                              onClick={() => setDocEspelho(doc)}
+                              title="Consultar o XML: espelho completo da NF-e com protocolos e eventos"
+                            >
+                              <FileSearch className="size-3.5 mr-1" aria-hidden="true" />
+                              Consultar XML
+                            </Button>
+
+                            {doc.desqualificadaParaInventario ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={!podeProcessar}
+                                className="h-7 text-xs text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+                                onClick={() => confirmarRequalificacao(doc)}
+                                title={
+                                  podeProcessar
+                                    ? 'Remover a marca "não gera inventário" (regras do emitente/produto)'
+                                    : 'Sem permissão: exige a ação "Processar notas" no perfil'
+                                }
+                              >
+                                Requalificar
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={!podeProcessar}
+                                className="h-7 text-xs text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+                                onClick={() => setDocParaDesqualificar(doc)}
+                                title={
+                                  podeProcessar
+                                    ? 'Marcar "não gera inventário": este emitente/produto fica fora do Bloco H'
+                                    : 'Sem permissão: exige a ação "Processar notas" no perfil'
+                                }
+                              >
+                                <ShieldOff className="size-3.5 mr-1" aria-hidden="true" />
+                                Desqualificar
+                              </Button>
+                            )}
 
                             {doc.status !== 'CANCELADO' && podeProcessar && (
                               <Button
@@ -618,6 +712,38 @@ export default function ImportarPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Modal Espelho da NF-e ("consulta do xml") */}
+      {docEspelho && (
+        <Dialog open={!!docEspelho} onOpenChange={(aberto) => !aberto && setDocEspelho(null)}>
+          <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between gap-2">
+                <span className="text-teal-800">Espelho da NF-e nº {docEspelho.numero}</span>
+                {getStatusBadge(docEspelho.status)}
+              </DialogTitle>
+              <DialogDescription className="font-mono text-xs break-all">
+                Chave: {docEspelho.chaveAcesso}
+              </DialogDescription>
+            </DialogHeader>
+
+            <EspelhoNFeDialogBody doc={docEspelho} />
+
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setDocEspelho(null)}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modal de confirmação da desqualificação para inventário */}
+      <DialogoDesqualificarNota
+        doc={docParaDesqualificar}
+        onConfirm={confirmarDesqualificacao}
+        onCancel={() => setDocParaDesqualificar(null)}
+      />
 
       {/* Modal Cancelamento com Estorno */}
       {docParaCancelar && (

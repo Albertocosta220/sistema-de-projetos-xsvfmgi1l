@@ -69,9 +69,8 @@ export function aplicarRegrasDesqualificacao(
           chaveRegraDesqualificacao(r.cnpjEmitente, r.cProd) ===
           chaveRegraDesqualificacao(
             doc.cnpjEmitente,
-            itens.find((it) =>
-              chaves.has(chaveRegraDesqualificacao(doc.cnpjEmitente, it.cProd)),
-            )?.cProd || '',
+            itens.find((it) => chaves.has(chaveRegraDesqualificacao(doc.cnpjEmitente, it.cProd)))
+              ?.cProd || '',
           ),
       )
       return {
@@ -81,7 +80,12 @@ export function aplicarRegrasDesqualificacao(
         desqualificadaPor: regra?.criadoPor,
       }
     }
-    return { ...doc, desqualificadaParaInventario: false, desqualificadaEm: undefined, desqualificadaPor: undefined }
+    return {
+      ...doc,
+      desqualificadaParaInventario: false,
+      desqualificadaEm: undefined,
+      desqualificadaPor: undefined,
+    }
   })
 }
 
