@@ -9,9 +9,19 @@ import ImportarPage from '@/pages/ImportarPage'
 import ProdutosPage from '@/pages/ProdutosPage'
 import KardexPage from '@/pages/KardexPage'
 import InventarioPage from '@/pages/InventarioPage'
+import BlocoKPage from '@/pages/BlocoKPage'
 import SpedPage from '@/pages/SpedPage'
 import AuditoriaPage from '@/pages/AuditoriaPage'
+import FornecedoresPage from '@/pages/FornecedoresPage'
+import RegrasCfopPage from '@/pages/RegrasCfopPage'
 import EmpresasSefazPage from '@/pages/EmpresasSefazPage'
+import ReformaTributariaPage from '@/pages/ReformaTributariaPage'
+import AssistenteIaPage from '@/pages/AssistenteIaPage'
+import BackupPage from '@/pages/BackupPage'
+import CertificadoPage from '@/pages/CertificadoPage'
+import ManuaisPage from '@/pages/ManuaisPage'
+import VerificacaoLupoPage from '@/pages/VerificacaoLupoPage'
+import ConfiguracoesPage from '@/pages/ConfiguracoesPage'
 import NotFound from '@/pages/NotFound'
 
 const App = () => (
@@ -19,17 +29,28 @@ const App = () => (
     <SigefProvider>
       <TooltipProvider>
         <Toaster />
-        <Sonner position="top-right" richColors />
+        <Sonner position="bottom-right" richColors />
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<PainelPage />} />
             <Route path="/importar" element={<ImportarPage />} />
-            <Route path="/produtos" element={<ProdutosPage />} />
             <Route path="/kardex" element={<KardexPage />} />
             <Route path="/inventario" element={<InventarioPage />} />
+            <Route path="/bloco-k" element={<BlocoKPage />} />
             <Route path="/sped" element={<SpedPage />} />
+            <Route path="/produtos" element={<ProdutosPage />} />
+            <Route path="/fornecedores" element={<FornecedoresPage />} />
+            <Route path="/regras-cfop" element={<RegrasCfopPage />} />
+            <Route path="/empresas" element={<EmpresasSefazPage />} />
+            <Route path="/sefaz" element={<EmpresasSefazPage />} />
             <Route path="/auditoria" element={<AuditoriaPage />} />
-            <Route path="/empresas-sefaz" element={<EmpresasSefazPage />} />
+            <Route path="/reforma" element={<ReformaTributariaPage />} />
+            <Route path="/assistente" element={<AssistenteIaPage />} />
+            <Route path="/backup" element={<BackupPage />} />
+            <Route path="/certificado" element={<CertificadoPage />} />
+            <Route path="/manuais" element={<ManuaisPage />} />
+            <Route path="/verificacao" element={<VerificacaoLupoPage />} />
+            <Route path="/configuracoes" element={<ConfiguracoesPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
