@@ -1,4 +1,5 @@
-import { BackupHistorico, DadosEmpresaStore, Empresa } from '@/types/sigef'
+import { BackupHistorico, DadosEmpresaStore, DocumentoFiscal, Empresa } from '@/types/sigef'
+import { MARCADOR_XML_COMPACTADO } from './storageService'
 
 const KEY_EMPRESA_ATIVA = 'sigef_empresa_ativa_id'
 const KEY_EMPRESAS_CADASTRO = 'sigef_empresas_lista'
@@ -156,7 +157,7 @@ export function normalizarStore(dados: DadosEmpresaStore): DadosEmpresaStore {
     empresa: dados?.empresa ?? vazia.empresa,
     produtos: Array.isArray(dados?.produtos) ? dados.produtos : [],
     dePara: Array.isArray(dados?.dePara) ? dados.dePara : [],
-    documentos: Array.isArray(dados?.documentos) ? dados.documentos : [],
+    documentos: Array.isArray(dados?.documentos) ? sanitizarDocumentos(dados.documentos) : [],
     kardex: Array.isArray(dados?.kardex) ? dados.kardex : [],
     fechamentos: Array.isArray(dados?.fechamentos) ? dados.fechamentos : [],
     ocorrencias: Array.isArray(dados?.ocorrencias) ? dados.ocorrencias : [],
@@ -164,4 +165,24 @@ export function normalizarStore(dados: DadosEmpresaStore): DadosEmpresaStore {
     ultimoNSU: typeof dados?.ultimoNSU === 'number' ? dados.ultimoNSU : 0,
     competenciaAtiva: dados?.competenciaAtiva || undefined,
   }
+}
+
+/**
+ * Documentos sem itens nem emitente são artefatos do re-parse por cota removido
+ * na v0.0.23 (uma store antiga podia ter sido salva com notas sobrescritas por
+ * dados vazios: chave '', emitente '', itens []). Sem itens/emitente eles não
+ * participam de NENHUM fluxo (vínculo automático, kardex, auditoria) — mantê-los
+ * só polui a fila com registros "vazios" e some o fornecedor da tela
+ * Fornecedores. Descartados na carga: o usuário reimporta os XMLs originais.
+ */
+export function documentoVazio(d: DocumentoFiscal): boolean {
+  return (
+    (d.itens?.length ?? 0) === 0 &&
+    !d.cnpjEmitente?.replace(/\D/g, '') &&
+    !d.chaveAcesso?.replace(/\D/g, '')
+  )
+}
+
+function sanitizarDocumentos(documentos: DocumentoFiscal[]): DocumentoFiscal[] {
+  return documentos.filter((d) => d && !documentoVazio(d))
 }

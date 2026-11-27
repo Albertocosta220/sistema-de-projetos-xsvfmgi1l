@@ -21,12 +21,25 @@ export function buscarDePara(
   tabelaDePara: DeParaVigente[],
 ): DeParaVigente | undefined {
   const cnpjLimpo = cnpjFornecedor.replace(/\D/g, '')
-  return tabelaDePara.find(
+  // Exato (mesma capitalização) tem prioridade…
+  const exato = tabelaDePara.find(
     (dp) =>
       dp.cnpjFornecedor.replace(/\D/g, '') === cnpjLimpo &&
       dp.cProd.trim().toUpperCase() === cProdFornecedor.trim().toUpperCase(),
   )
+  if (exato) return exato
+  // …e o fallback normalizado (trim, maiúsculas, zeros à esquerda) cobre os
+  // casos em que o vínculo foi gravado com o cProd em outra forma (ex. '0078'
+  // vs '78' ou '78 ' no XML) — sem ele, um vínculo criado pelo automático
+  // nunca é resolvido no kardex e a nota volta para AGUARDANDO_DE_PARA.
+  const alvo = normalizarCodigo(cProdFornecedor)
+  return tabelaDePara.find(
+    (dp) =>
+      dp.cnpjFornecedor.replace(/\D/g, '') === cnpjLimpo &&
+      normalizarCodigo(dp.cProd) === alvo,
+  )
 }
+=======
 
 /**
  * Recomputa toda a linha do tempo do Kardex por Custo Médio Ponderado (CMP)
