@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { PainelIndicadoresFiscais } from '@/components/PainelIndicadoresFiscais'
 import { OnboardingPrimeiraEmpresa } from '@/components/OnboardingPrimeiraEmpresa'
 import {
   Table,
@@ -249,6 +250,9 @@ export default function PainelPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dashboard de Indicadores Fiscais (resumo, totais, evolução e ranking) */}
+      <PainelIndicadoresFiscais />
 
       {/* Grid com Tabela de Produtos e Alertas Críticos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
