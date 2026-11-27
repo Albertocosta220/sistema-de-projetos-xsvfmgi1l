@@ -458,17 +458,11 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       novosDocs.push(doc)
     })
 
-    // Re-parseia documentos anteriores cujo XML foi compactado pela cota do
-    // localStorage (marcador XML_COMPACTADO_QUOTA): o corte preserva tudo que
-    // o parse usa, então o documento volta ao estado completo sem perder nada.
-    const docsRestaurados = store.documentos.map((d) =>
-      d.xmlOriginal.includes('XML_COMPACTADO_QUOTA')
-        ? { ...d, ...parseNFeXml(d.xmlOriginal, empresaAtiva.cnpj), id: d.id }
-        : d,
-    )
-
-    // Combina com documentos existentes
-    const todosDocumentos = [...docsRestaurados, ...novosDocs]
+    // O marcador XML_COMPACTADO_QUOTA no xmlOriginal significa "dados estruturados
+    // íntegros, XML bruto descartado" — o documento já está completo no storage e
+    // NUNCA deve ser re-parseado (reparsear geraria documento vazio: chave '',
+    // número 'S/N', itens [], valor 0).
+    const todosDocumentos = [...store.documentos, ...novosDocs]
 
     const resultado = reprocessarKardexCronologico(store.produtos, todosDocumentos, store.dePara)
 
@@ -814,6 +808,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       uf,
       ultimoNSUAtual: store.ultimoNSU,
       forcarConsumoIndevido,
+      documentosImportados: store.documentos,
       certificadoUsado: {
         subjectCN: cert.subjectCN,
         cnpj: cert.cnpj,

@@ -115,6 +115,8 @@ export interface DocumentoFiscal {
   importadoEm: string
   canceladoEm?: string
   justificativaCancelamento?: string
+  /** NSU atribuído pelo distribuidor DF-e simulado (quando baixado via consulta). */
+  nsu?: number
 }
 
 export type TipoMovimentoKardex =

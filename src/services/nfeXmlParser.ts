@@ -1,4 +1,5 @@
 import { DocumentoFiscal, ItemNFe, TipoOperacaoNFe } from '@/types/sigef'
+import { MARCADOR_XML_COMPACTADO } from './storageService'
 
 // Helper simples e resiliente para extrair tags XML (funciona com namespace ou sem)
 function getTagText(xml: string, tag: string): string {
@@ -28,8 +29,20 @@ export function extrairChaveAcesso(xml: string): string {
   return ''
 }
 
+// Defesa: o marcador de cota NUNCA deve ser re-parseado — significaria que o
+// chamador recebeu um documento do storage (dados estruturados íntegros) e
+// tentaria reconstruí-lo do XML, que foi descartado.
 export function parseNFeXml(xmlString: string, empresaAtivaCnpj: string): DocumentoFiscal {
   const cleanXml = xmlString.trim()
+
+  // Defesa: o marcador de cota significa "dados estruturados íntegros, XML bruto
+  // descartado" — re-parsear o marcador geraria um documento vazio (chave '',
+  // número 'S/N', itens [], valor 0). Nunca deve acontecer.
+  if (cleanXml.includes(MARCADOR_XML_COMPACTADO)) {
+    throw new Error(
+      'Tentativa de re-parsear XML compactado por cota — o documento já possui dados estruturados íntegros no storage.',
+    )
+  }
   const chaveAcesso = extrairChaveAcesso(cleanXml)
 
   const nNF = getTagText(cleanXml, 'nNF') || 'S/N'
