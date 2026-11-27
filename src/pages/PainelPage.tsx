@@ -18,6 +18,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { OnboardingPrimeiraEmpresa } from '@/components/OnboardingPrimeiraEmpresa'
 import {
   Table,
   TableBody,
@@ -29,6 +30,24 @@ import {
 
 export default function PainelPage() {
   const { empresaAtiva, produtos, documentos, kardex, ocorrencias, fechamentos } = useSigef()
+
+  // Produção sem empresa cadastrada: onboarding da primeira empresa
+  if (!empresaAtiva.id) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Bem-vindo ao SIGEF-ME
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Sistema de controle fiscal de estoque em produção oficial — comece cadastrando a sua
+            empresa.
+          </p>
+        </div>
+        <OnboardingPrimeiraEmpresa />
+      </div>
+    )
+  }
 
   // Cálculos consolidados para o Painel
   const saldoTotalValor = produtos.reduce((total, p) => {
@@ -64,7 +83,7 @@ export default function PainelPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              {empresaAtiva.nomeFantasia}
+              {empresaAtiva.nomeFantasia || empresaAtiva.razaoSocial || 'Minha empresa'}
             </h1>
             <Badge
               variant={empresaAtiva.situacaoCadastral === 'ATIVA' ? 'outline' : 'destructive'}

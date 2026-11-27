@@ -129,8 +129,7 @@ export default function EmpresasSefazPage() {
             Empresas & Consulta DF-e SEFAZ (Simulada)
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Isolamento multiempresa (VB Metais, ALENA, ALL METALS), controle de NSU por UF e
-            retornos simulados (137, 138, 656)
+            Isolamento multiempresa, controle de NSU por UF e retornos simulados (137, 138, 656)
           </p>
         </div>
 
@@ -410,7 +409,7 @@ export default function EmpresasSefazPage() {
                   id="nomeFantasia"
                   value={formEmpresa.nomeFantasia}
                   onChange={(e) => setFormEmpresa({ ...formEmpresa, nomeFantasia: e.target.value })}
-                  placeholder="Ex: VB Metais"
+                  placeholder="Nome da empresa"
                   required
                   className="text-xs mt-1"
                 />

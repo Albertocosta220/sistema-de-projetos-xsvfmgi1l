@@ -16,6 +16,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react'
+// Nota: nenhum dado de exemplo nesta tela — em produção os XMLs vêm apenas de arquivos reais.
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -265,36 +266,6 @@ export default function ImportarPage() {
                   className="hidden"
                   onChange={(e) => processarArquivos(e.target.files)}
                 />
-              </div>
-            </div>
-
-            {/* Testes rápidos com exemplos embutidos */}
-            <div className="pt-2 border-t border-slate-200">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-2">
-                Simulações Rápidas de Auditoria e Validação:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleImportarExemploDuplicidade}
-                  className="text-xs text-rose-700 border-rose-200 hover:bg-rose-50"
-                >
-                  <Copy className="size-3 mr-1" />
-                  Importar Chave Duplicada (Regra A01)
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleImportarExemploSaldoNegativo}
-                  className="text-xs text-amber-700 border-amber-200 hover:bg-amber-50"
-                >
-                  <AlertTriangle className="size-3 mr-1" />
-                  Importar Saída c/ Saldo Negativo (Regra A03)
-                </Button>
               </div>
             </div>
           </CardContent>

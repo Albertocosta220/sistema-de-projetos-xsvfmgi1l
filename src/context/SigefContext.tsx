@@ -371,7 +371,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }): { sucesso: boolean; mensagem: string } => {
     const { competencia, responsavel, itensContagem } = params
 
-    // 1. Bloqueio por empresa inapta (Regra A09) - ex: ALL METALS
+    // 1. Bloqueio por empresa inapta (Regra A09)
     if (empresaAtiva.bloquearFechamento || empresaAtiva.situacaoCadastral !== 'ATIVA') {
       const msg =
         empresaAtiva.motivoBloqueio ||

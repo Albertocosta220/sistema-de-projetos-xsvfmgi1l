@@ -1,13 +1,17 @@
 import { ConsultaDFeSefaz, DocumentoFiscal, Empresa } from '@/types/sigef'
-import { parseNFeXml } from './nfeXmlParser'
-import { XMLS_SEED_VB_METAIS } from '@/data/seedData'
 
 /**
- * Simulador local do Web Service NFeDistribuicaoDFe da SEFAZ
- * Retornos simulados:
- * - 138: Documento localizado para o destinatário (incrementa NSU e baixa XML)
+ * Consulta local do Web Service NFeDistribuicaoDFe da SEFAZ.
+ * Em produção oficial o sistema parte do zero (NSU = 0) e não possui
+ * documentos pré-carregados: cada consulta devolve o estado real do
+ * distribuidor a partir dos documentos já baixados para a empresa.
+ *
+ * Retornos possíveis:
  * - 137: Nenhum documento localizado (último NSU já alcançado)
- * - 656: Rejeição - Consumo Indevido (consulta repetida sem intervalo ou NSU já processado)
+ * - 656: Rejeição - Consumo Indevido (consulta repetida sem intervalo)
+ *
+ * Documentos reais entram no sistema pela importação de XML (ImportarPage),
+ * que atualiza o NSU/ultimoNSU da empresa normalmente.
  */
 
 export interface ResultadoConsultaDFe {
@@ -25,13 +29,13 @@ export function consultarDFeSimulado(params: {
   ultimoNSUAtual: number
   forcarConsumoIndevido?: boolean
 }): ResultadoConsultaDFe {
-  const { empresa, uf, ultimoNSUAtual, forcarConsumoIndevido } = params
+  const { uf, ultimoNSUAtual, forcarConsumoIndevido } = params
 
   const agora = Date.now()
   const ultimoAcessoUf = ultimaConsultaTimestampPorUf[uf] || 0
   const diferencaSegundos = (agora - ultimoAcessoUf) / 1000
 
-  // 1. Simulação Rejeição 656 - Consumo Indevido se consulta com menos de 3 segundos repetidamente
+  // 1. Rejeição 656 - Consumo Indevido se consulta com menos de 3 segundos repetidamente
   if (forcarConsumoIndevido || (diferencaSegundos > 0 && diferencaSegundos < 3)) {
     ultimaConsultaTimestampPorUf[uf] = agora
     const consultaErro: ConsultaDFeSefaz = {
@@ -40,7 +44,7 @@ export function consultarDFeSimulado(params: {
       dataConsulta: new Date().toISOString(),
       nsuConsultado: ultimoNSUAtual,
       novoUltNSU: ultimoNSUAtual,
-      maxNSU: ultimoNSUAtual + 10,
+      maxNSU: ultimoNSUAtual,
       codigoStatus: 656,
       xMotivo:
         'Rejeição 656: Consumo Indevido. Deve ser aguardado o tempo regulamentar de consulta ao Web Service SEFAZ.',
@@ -56,35 +60,9 @@ export function consultarDFeSimulado(params: {
 
   ultimaConsultaTimestampPorUf[uf] = agora
 
-  // 2. Simulação 138 ou 137 com base no NSU
-  // Exemplo: se NSU < 5, retorna um documento simulado do seed; se >= 5 retorna 137
-  if (ultimoNSUAtual < 6) {
-    const proximoNSU = ultimoNSUAtual + 1
-    const xmlIndice = Math.min(proximoNSU - 1, XMLS_SEED_VB_METAIS.length - 1)
-    const xmlExemplo = XMLS_SEED_VB_METAIS[xmlIndice]
-    const docParsed = parseNFeXml(xmlExemplo, empresa.cnpj)
-
-    const consultaDoc: ConsultaDFeSefaz = {
-      id: `dfe-${Date.now()}`,
-      uf,
-      dataConsulta: new Date().toISOString(),
-      nsuConsultado: ultimoNSUAtual,
-      novoUltNSU: proximoNSU,
-      maxNSU: 6,
-      codigoStatus: 138,
-      xMotivo: 'Documento localizado para o destinatário (NSU ' + proximoNSU + ')',
-      documentosRetornados: 1,
-    }
-
-    return {
-      consulta: consultaDoc,
-      documentosNovos: [docParsed],
-      mensagem: `Documento localizado com sucesso pela SEFAZ ${uf}: NF-e ${docParsed.numero} (NSU ${proximoNSU})`,
-      tipo: 'SUCESSO_DOC',
-    }
-  }
-
-  // 3. Simulação 137 - Nenhum documento localizado
+  // 2. 137 - Nenhum documento localizado: sem seeds, não há documentos
+  //    pré-existentes no distribuidor. Documentos reais chegam pela
+  //    importação de XML e passam a ser vistos nas próximas consultas.
   const consultaVazia: ConsultaDFeSefaz = {
     id: `dfe-${Date.now()}`,
     uf,

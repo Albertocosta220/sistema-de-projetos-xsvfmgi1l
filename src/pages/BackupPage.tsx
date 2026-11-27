@@ -23,11 +23,11 @@ export default function BackupPage() {
     exportarBackupJson,
     importarBackupJson,
     restaurarBackupHistorico,
-    resetarParaDadosExemplo,
   } = useSigef()
 
   const inputRef = useRef<HTMLInputElement>(null)
   const [previa, setPrevia] = useState<{ nome: string; conteudo: string } | null>(null)
+  const [confirmarRestauracao, setConfirmarRestauracao] = useState(false)
 
   const escolherArquivo = async (file?: File) => {
     if (!file) return
@@ -72,11 +72,9 @@ export default function BackupPage() {
           <Button
             variant="outline"
             className="text-rose-700 border-rose-200 hover:bg-rose-50"
-            onClick={() => {
-              if (confirmRestaurar()) resetarParaDadosExemplo()
-            }}
+            onClick={() => setConfirmarRestauracao(true)}
           >
-            Restaurar dados de exemplo
+            Restaurar backup anterior
           </Button>
         </div>
         <input
@@ -163,12 +161,38 @@ export default function BackupPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={confirmarRestauracao} onOpenChange={setConfirmarRestauracao}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restaurar última versão do histórico?</DialogTitle>
+            <DialogDescription>
+              Os dados atuais serão substituídos pela versão mais recente guardada no histórico (
+              {historicoBackups.length > 0
+                ? dataHoraBR(historicoBackups[0].dataBackup)
+                : 'nenhuma versão registrada'}
+              ). Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmarRestauracao(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={historicoBackups.length === 0}
+              onClick={() => {
+                if (historicoBackups.length > 0) {
+                  restaurarBackupHistorico(historicoBackups[0].versao)
+                }
+                setConfirmarRestauracao(false)
+              }}
+            >
+              Restaurar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
-}
-
-/** Confirmação própria (nunca confirm()). */
-function confirmRestaurar(): boolean {
-  // Uso simples; substituído pelo fluxo do toast de ação quando disponível.
-  return true
 }

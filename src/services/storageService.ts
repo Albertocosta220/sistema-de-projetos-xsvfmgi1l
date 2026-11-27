@@ -1,5 +1,5 @@
 import { BackupHistorico, DadosEmpresaStore, Empresa } from '@/types/sigef'
-import { criarStoreVazia } from './limpezaSeeds'
+import { EMPRESA_PLACEHOLDER, criarStoreVazia } from './limpezaSeeds'
 
 const KEY_EMPRESA_ATIVA = 'sigef_empresa_ativa_id'
 const KEY_EMPRESAS_CADASTRO = 'sigef_empresas_lista'
