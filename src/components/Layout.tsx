@@ -121,17 +121,30 @@ export default function Layout() {
           </button>
         </div>
 
-        {gruposVisiveis.map((g) => (
-          <div key={g.titulo}>
-            <h4>{g.titulo}</h4>
-            {g.itens.map((it) => (
-              <NavLink key={it.to} to={it.to} end={it.to === '/'} className="sig-nav">
-                <it.icon aria-hidden="true" />
-                {it.label}
-              </NavLink>
-            ))}
-          </div>
-        ))}
+        <div className="flex-1">
+          {gruposVisiveis.map((g) => (
+            <div key={g.titulo}>
+              <h4>{g.titulo}</h4>
+              {g.itens.map((it) => (
+                <NavLink key={it.to} to={it.to} end={it.to === '/'} className="sig-nav">
+                  <it.icon aria-hidden="true" />
+                  {it.label}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="pt-3 mt-2 border-t border-white/12">
+          <button
+            type="button"
+            className="sig-nav text-rose-200 hover:text-white hover:bg-rose-500/20"
+            onClick={sair}
+          >
+            <LogOut aria-hidden="true" />
+            Sair
+          </button>
+        </div>
       </aside>
 
       <div className="min-w-0">

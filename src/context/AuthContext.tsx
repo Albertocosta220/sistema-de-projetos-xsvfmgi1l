@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Perfil, Sessao, Usuario } from '@/types/usuario'
 import type { ResultadoLogin } from '@/services/authService'
 import {
@@ -71,6 +72,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigate = useNavigate()
   const [pronto, setPronto] = useState(false)
   const [usuarioAtual, setUsuarioAtual] = useState<Usuario | null>(null)
   const [sessao, setSessao] = useState<Sessao | null>(null)
@@ -128,11 +130,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [iniciarSessao],
   )
 
+  // Encerra a sessão e leva o usuário à tela de login. O navigate garante a
+  // troca de tela imediata (o redirect passivo das rotas protegidas só
+  // aconteceria na próxima renderização de cada rota).
   const sair = useCallback(() => {
     limparSessao()
     setUsuarioAtual(null)
     setSessao(null)
-  }, [])
+    navigate('/login', { replace: true })
+  }, [navigate])
 
   const criarAdministrador = useCallback(
     async (dados: { nome: string; login: string; senha: string }) => {

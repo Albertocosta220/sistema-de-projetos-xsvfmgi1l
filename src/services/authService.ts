@@ -122,13 +122,26 @@ export async function cadastrarAdministrador(dados: NovoUsuarioAdmin): Promise<U
 
 // ============ Sessão ============
 
+/**
+ * A sessão vive APENAS no sessionStorage: recarregar a aba (F5) mantém o
+ * usuário logado, mas fechar e reabrir o navegador (ou abrir o app de novo)
+ * sempre começa pela tela de login.
+ * Migração: sessões antigas gravadas no localStorage são descartadas na
+ * primeira leitura — obriga novo login uma única vez.
+ */
 export function carregarSessao(): Sessao | null {
   try {
-    const raw = sessionStorage.getItem(KEY_SESSAO) ?? localStorage.getItem(KEY_SESSAO)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Sessao
-    if (!parsed?.usuarioId || !parsed?.login) return null
-    return parsed
+    const raw = sessionStorage.getItem(KEY_SESSAO)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Sessao
+      if (!parsed?.usuarioId || !parsed?.login) return null
+      return parsed
+    }
+    // Legado: sessão persistida indevidamente no localStorage — descarta.
+    if (localStorage.getItem(KEY_SESSAO)) {
+      localStorage.removeItem(KEY_SESSAO)
+    }
+    return null
   } catch {
     return null
   }
@@ -137,7 +150,6 @@ export function carregarSessao(): Sessao | null {
 export function salvarSessao(sessao: Sessao): void {
   try {
     sessionStorage.setItem(KEY_SESSAO, JSON.stringify(sessao))
-    localStorage.setItem(KEY_SESSAO, JSON.stringify(sessao))
   } catch (e) {
     console.error('Erro ao salvar sessão:', e)
   }
