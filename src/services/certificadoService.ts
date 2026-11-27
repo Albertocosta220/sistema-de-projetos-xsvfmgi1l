@@ -60,27 +60,99 @@ function extrairCpfDoSubject(subject: string): string {
   return ''
 }
 
+const MSG_SENHA =
+  'Senha incorreta para este certificado. Verifique a senha informada e tente novamente.'
+
+const MSG_CRIPTOGRAFIA =
+  'Este certificado usa uma criptografia que o navegador não consegue abrir ' +
+  '(PKCS#12 com AES-256/PBES2 moderno). Reexporte o certificado em modo de ' +
+  'compatibilidade: no Windows, ao exportar o .pfx, escolha "TripleDES-SHA256" ' +
+  '(compatibilidade com versões anteriores); pelo OpenSSL, use a opção -legacy ' +
+  '(ou -certpbe/-keypbe PBE-SHA1-3DES) e tente novamente.'
+
+const MSG_NAO_PKCS12 =
+  'O arquivo não é um certificado A1 no formato PKCS#12 (.pfx/.p12). ' +
+  'Verifique se você selecionou o arquivo correto — arquivos .cer, .p7b, .pem ou ' +
+  'PDF não são aceitos nesta tela.'
+
+const MSG_GENERICA =
+  'Não foi possível abrir o certificado .pfx. Verifique se o arquivo é um ' +
+  'certificado A1 válido (.pfx/.p12), se não está corrompido e se a senha está correta.'
+
+/**
+ * Mapeia a exceção crua da node-forge para uma mensagem em português com a
+ * orientação do que fazer — o texto bruto em inglês nunca chega ao usuário.
+ */
+function classificarErroForge(msg: string): Error {
+  if (
+    /MAC could not be verified|Invalid password|wrong password|Unable to decrypt|Failed to decrypt/i.test(
+      msg,
+    )
+  ) {
+    return new Error(MSG_SENHA)
+  }
+  if (
+    /Unsupported OID|unsupported MAC|Unsupported encryption|Unsupported key derivation|Unknown encryption/i.test(
+      msg,
+    )
+  ) {
+    return new Error(MSG_CRIPTOGRAFIA)
+  }
+  if (/ASN\.1 object is not an PKCS#12 PFX|Cannot read PKCS#12|PKCS#12 PFX of version/i.test(msg)) {
+    return new Error(MSG_NAO_PKCS12)
+  }
+  return new Error(MSG_GENERICA)
+}
+
+/** Converte o base64 (com tolerância a quebras/whitespace) em buffer binário cru. */
+function decodificarBase64(base64: string): forge.util.ByteStringBuffer {
+  const limpo = base64.replace(/[^A-Za-z0-9+/=]/g, '')
+  if (!limpo) throw new Error('Arquivo .pfx ilegível (conteúdo vazio ou inválido).')
+  const bin = forge.util.decode64(limpo)
+  return forge.util.createBuffer(bin, 'binary')
+}
+
 /** Valida e converte o .pfx em metadados; lança Error com mensagem amigável. */
 export function parsePfx(base64: string, senha: string, nomeArquivo: string): CertificadoA1 {
   let der: forge.util.ByteStringBuffer
   try {
-    const bin = forge.util.decode64(base64)
-    der = forge.util.createBuffer(bin, 'binary')
+    der = decodificarBase64(base64)
   } catch {
     throw new Error('Arquivo .pfx ilegível (não é base64/binário válido).')
   }
 
+  // O parse da forge exige o objeto ASN.1 (fromDer) — passar o buffer cru direto
+  // para pkcs12FromAsn1 sempre falha com "ASN.1 object is not an PKCS#12 PFX".
+  // Usamos modo NÃO-estrito (BER-tolerante) para aceitar containers gerados com
+  // codificação BER (comum em .pfx do Windows/OpenSSL).
+  let asn1Pfx: forge.asn1.Asn1
+  try {
+    asn1Pfx = forge.asn1.fromDer(der, false)
+  } catch {
+    throw new Error(MSG_NAO_PKCS12)
+  }
+
+  // Pré-checagem da estrutura PFX (SEQUENCE { INTEGER versão, ContentInfo, ... });
+  // .cer/.p7b/PDF não têm INTEGER como primeiro elemento — evita erro genérico.
+  const valorTopo = asn1Pfx.value
+  const parecePfx =
+    asn1Pfx.tagClass === forge.asn1.Class.UNIVERSAL &&
+    asn1Pfx.type === forge.asn1.Type.SEQUENCE &&
+    asn1Pfx.constructed === true &&
+    Array.isArray(valorTopo) &&
+    valorTopo.length >= 2 &&
+    Array.isArray(valorTopo[0].value) === false && // INTEGER é primitivo
+    valorTopo[0].type === forge.asn1.Type.INTEGER
+  if (!parecePfx) {
+    throw new Error(MSG_NAO_PKCS12)
+  }
+
   let p12: forge.pkcs12.Pkcs12Pfx
   try {
-    p12 = forge.pkcs12.pkcs12FromAsn1(der, senha)
+    p12 = forge.pkcs12.pkcs12FromAsn1(asn1Pfx, false, senha)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if (/password|decrypt|mac/i.test(msg)) {
-      throw new Error(
-        'Senha incorreta ou arquivo .pfx corrompido. Verifique a senha e tente novamente.',
-      )
-    }
-    throw new Error('Não foi possível abrir o certificado: ' + msg)
+    throw classificarErroForge(msg)
   }
 
   // Procura o par chave+certificado (certificado de assinatura)
