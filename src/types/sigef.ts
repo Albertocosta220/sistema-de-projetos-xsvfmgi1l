@@ -141,6 +141,9 @@ export interface EspelhoNFe {
  * produto (cProd do fornecedor). Persistida por empresa; a marca no documento
  * é derivada destas regras por aplicarRegrasDesqualificacao.
  */
+/** Origem da regra: desqualificação p/ inventário ou marca "Nota Controla Estoque" (alias). */
+export type OrigemRegraDesqualificacao = 'DESQUALIFICACAO' | 'CONTROLE_ESTOQUE'
+
 export interface RegraDesqualificacao {
   id: string
   cnpjEmitente: string
@@ -150,6 +153,8 @@ export interface RegraDesqualificacao {
   criadoEm: string
   criadoPor: string
   chaveDocOrigem?: string
+  /** Qual pedido do usuário criou a regra — define o badge exibido na fila. */
+  origem?: OrigemRegraDesqualificacao
 }
 
 export interface ItemNFe {
@@ -206,6 +211,8 @@ export interface DocumentoFiscal {
   desqualificadaParaInventario?: boolean
   desqualificadaEm?: string
   desqualificadaPor?: string
+  /** Marca derivada "Nota Controla Estoque" = NÃO (alias da desqualificação, mesma regra). */
+  naoControlaEstoque?: boolean
   /** Espelho estruturado do XML (protocolo de autorização, eventos, endereços, totais). */
   espelho?: EspelhoNFe
 }

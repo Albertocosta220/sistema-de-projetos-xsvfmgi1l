@@ -1,7 +1,8 @@
-// Confirmação da desqualificação para inventário ("não gera inventário").
+// Confirmação da desqualificação para inventário ("não gera inventário") e da
+// marcação "Nota Controla Estoque" (mesma regra CNPJ + cProd, rótulo diferente).
 // Explica o alcance da regra (emitente + produto em TODAS as notas) antes do
 // usuário confirmar, seguindo o padrão visual teal do sistema.
-import { Boxes, ShieldOff } from 'lucide-react'
+import { Boxes, PackageX, ShieldOff } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -19,26 +20,39 @@ export function DialogoDesqualificarNota({
   doc,
   onConfirm,
   onCancel,
+  modo = 'inventario',
 }: {
   doc: DocumentoFiscal | null
   onConfirm: () => void
   onCancel: () => void
+  /** 'inventario': desqualificar p/ Bloco H; 'estoque': "Nota Controla Estoque" = NÃO. */
+  modo?: 'inventario' | 'estoque'
 }) {
   if (!doc) return null
   const itens = itensDocumento(doc)
+  const modoEstoque = modo === 'estoque'
 
   return (
     <Dialog open={!!doc} onOpenChange={(aberto) => !aberto && onCancel()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-teal-800">
-            <ShieldOff className="size-5" aria-hidden="true" />
-            Desqualificar nota para o Inventário
+            {modoEstoque ? (
+              <PackageX className="size-5" aria-hidden="true" />
+            ) : (
+              <ShieldOff className="size-5" aria-hidden="true" />
+            )}
+            {modoEstoque
+              ? 'Marcar nota como "Não controla estoque"'
+              : 'Desqualificar nota para o Inventário'}
           </DialogTitle>
           <DialogDescription className="text-xs">
             NF-e nº {doc.numero} (série {doc.serie}) — {doc.nomeEmitente} ({doc.cnpjEmitente}). A
-            nota continua na fila e na escrituração, mas fica{' '}
-            <strong className="text-teal-800">fora do Inventário Bloco H</strong>.
+            nota continua na fila e na escrituração, mas os produtos ficam{' '}
+            <strong className="text-teal-800">
+              {modoEstoque ? 'fora do Kardex e do Bloco H' : 'fora do Inventário Bloco H'}
+            </strong>
+            .
           </DialogDescription>
         </DialogHeader>
 
@@ -48,8 +62,11 @@ export function DialogoDesqualificarNota({
             <strong>
               este fornecedor (mesmo CNPJ emitente) e todas as notas dele com os mesmos produtos
             </strong>{' '}
-            ficam marcadas como <strong className="text-teal-800">"não gera inventário"</strong> —
-            agora e em importações futuras. A marcação é salva nesta empresa e sobrevive a
+            ficam marcadas como{' '}
+            <strong className="text-teal-800">
+              {modoEstoque ? '"não controla estoque"' : '"não gera inventário"'}
+            </strong>{' '}
+            — agora e em importações futuras. A marcação é salva nesta empresa e sobrevive a
             logout/F5.
           </div>
 
@@ -84,7 +101,7 @@ export function DialogoDesqualificarNota({
             Desistir
           </Button>
           <Button onClick={onConfirm} className="bg-teal-700 hover:bg-teal-800 text-white">
-            Desqualificar para Inventário
+            {modoEstoque ? 'Marcar "Não controla estoque"' : 'Desqualificar para Inventário'}
           </Button>
         </DialogFooter>
       </DialogContent>
