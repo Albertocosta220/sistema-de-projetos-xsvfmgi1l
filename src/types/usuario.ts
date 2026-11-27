@@ -96,6 +96,11 @@ export const ACOES: { key: string; label: string; descricao: string }[] = [
     label: 'Gerenciar perfis',
     descricao: 'Editar a matriz de permissões dos perfis de acesso',
   },
+  {
+    key: 'acao-criar-produto',
+    label: 'Criar produto via planilha',
+    descricao: 'Importar cadastro de itens de planilha (XLSX/CSV) para o catálogo e inventário',
+  },
 ]
 
 export const TODAS_PERMISSOES = [...TELAS.map((t) => t.key), ...ACOES.map((a) => a.key)]

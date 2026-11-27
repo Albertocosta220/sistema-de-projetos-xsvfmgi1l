@@ -60,6 +60,10 @@ interface SigefContextType {
   cadastrarProduto: (produto: Produto) => void
   editarProduto: (produto: Produto) => void
   excluirProduto: (codigoInventario: string) => void
+  importarProdutosPlanilha: (
+    produtos: Produto[],
+    meta?: { itensParaRevisao?: number; abaUtilizada?: string },
+  ) => { importados: number; ignorados: number; sinalizados: number }
   salvarDePara: (vinculo: Omit<DeParaVigente, 'id' | 'atualizadoEm'>) => void
   excluirDePara: (id: string) => void
 
@@ -345,6 +349,79 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     toast.success('Reprocessamento de todos os documentos concluído.')
   }
 
+  // Importação de cadastro de itens por planilha (Sucatas Cadastro)
+  const importarProdutosPlanilha = (
+    produtosImportados: Produto[],
+    meta?: { itensParaRevisao?: number; abaUtilizada?: string },
+  ): { importados: number; ignorados: number; sinalizados: number } => {
+    // Upsert por código de inventário: NUNCA sobrescreve produto já existente
+    const existentes = new Map(
+      store.produtos.map((p) => [p.codigoInventario.trim().toUpperCase(), p]),
+    )
+    const novos: Produto[] = []
+    let ignorados = 0
+    produtosImportados.forEach((p) => {
+      const chave = p.codigoInventario.trim().toUpperCase()
+      if (existentes.has(chave)) {
+        ignorados++
+      } else {
+        existentes.set(chave, p)
+        novos.push(p)
+      }
+    })
+
+    if (novos.length === 0) {
+      toast.info(
+        `Nenhum produto novo: todos os ${ignorados} código(s) da planilha já existem no catálogo.`,
+      )
+      return { importados: 0, ignorados, sinalizados: 0 }
+    }
+
+    // Ocorrência de auditoria A13 para os itens sinalizados para revisão
+    const sinalizados = novos.filter((p) => p.revisar).length
+    const novasOcorrencias: OcorrenciaAuditoria[] =
+      sinalizados > 0
+        ? [
+            {
+              id: `oco-a13-import-${Date.now()}`,
+              regraCodigo: 'A13',
+              regraNome: 'Importação de planilha — itens para revisão',
+              severidade: 'AVISO',
+              descricao: `Importação de planilha${
+                meta?.abaUtilizada ? ` (aba "${meta.abaUtilizada}")` : ''
+              }: ${sinalizados} de ${novos.length} item(ns) importado(s) com campo "SEM CORRESPONDÊNCIA" ou dados incompletos: ${novos
+                .filter((p) => p.revisar)
+                .map((p) => p.codigoInventario)
+                .join(', ')}.`,
+              baseLegal:
+                'Lei 11.196/2005 arts. 47/48; TIPI (Decreto 11.158/2022); Guia Prático EFD Reg. 0200',
+              dataIdentificacao: new Date().toISOString(),
+              resolvido: false,
+              podeReprocessar: false,
+            },
+          ]
+        : []
+
+    // Kardex e de-para recalculados com o catálogo ampliado (produtos novos não
+    // têm movimento; entram no inventário com saldo zero via calcularItensInventario)
+    const novosProdutos = [...store.produtos, ...novos]
+    const resultado = reprocessarKardexCronologico(novosProdutos, store.documentos, store.dePara)
+
+    atualizarStore({
+      produtos: novosProdutos,
+      documentos: resultado.documentosAtualizados,
+      kardex: resultado.kardex,
+      ocorrencias: [...resultado.ocorrencias, ...novasOcorrencias],
+    })
+
+    toast.success(
+      `Importação concluída: ${novos.length} produto(s) criado(s)${
+        ignorados > 0 ? `, ${ignorados} já existente(s) preservado(s)` : ''
+      }${sinalizados > 0 ? `, ${sinalizados} para revisão (régua A13)` : ''}.`,
+    )
+    return { importados: novos.length, ignorados, sinalizados }
+  }
+
   // Inventário e Fechamento de Competência
   const gerarContagemCompetencia = (competencia: string): ItemContagemInventario[] => {
     // Se já tiver fechamento anterior registrado, retorna itens salvos
@@ -609,6 +686,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         cadastrarProduto,
         editarProduto,
         excluirProduto,
+        importarProdutosPlanilha,
         salvarDePara,
         excluirDePara,
         importarXmlsEmLote,

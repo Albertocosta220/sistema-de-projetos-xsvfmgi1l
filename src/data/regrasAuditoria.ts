@@ -1,4 +1,4 @@
-// Definição das 12 Réguas de Auditoria Fiscal SIGEF-ME (A01 a A12)
+// Definição das Réguas de Auditoria Fiscal SIGEF-ME (A01 a A13)
 // Especificação completa com bases legais vigentes e Reforma Tributária
 
 export interface DefinicaoRegra {
@@ -105,5 +105,13 @@ export const REGUAS_AUDITORIA: DefinicaoRegra[] = [
       'Totalização física no Bloco H diverge das quantidades escrituradas no Bloco K (K200) na data de corte.',
     baseLegal: 'Ato COTEPE/ICMS nº 44/2018; Guia Prático EFD-ICMS/IPI Registro K200 e H010',
     severidadePadrao: 'ERRO',
+  },
+  {
+    codigo: 'A13',
+    nome: 'Importação de planilha — itens para revisão',
+    descricao:
+      'Item do cadastro importado por planilha que veio com campo "SEM CORRESPONDÊNCIA" ou dados fiscais incompletos, exigindo revisão manual do enquadramento.',
+    baseLegal: 'Lei 11.196/2005 arts. 47/48; TIPI (Decreto 11.158/2022); Guia Prático EFD Reg. 0200',
+    severidadePadrao: 'AVISO',
   },
 ]

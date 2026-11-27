@@ -28,6 +28,10 @@ export interface Produto {
   aliquotaCofins: number // percentual, ex: 7.60
   aliquotaIbs: number // percentual Reforma Tributária, ex: 1.0 (teste/transição)
   aliquotaCbs: number // percentual Reforma Tributária, ex: 0.9 (teste/transição)
+  /** Marcado pelo importador de planilha quando algum campo veio "SEM CORRESPONDÊNCIA" ou incompleto. */
+  revisar?: boolean
+  /** Observação gerada na importação da planilha (coluna divergente/pendência de revisão). */
+  observacaoImportacao?: string
 }
 
 export interface DeParaVigente {

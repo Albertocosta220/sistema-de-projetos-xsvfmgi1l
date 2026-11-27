@@ -46,6 +46,7 @@ export default function InventarioPage() {
     documentos,
     kardex,
     fechamentos,
+    produtos,
     gerarContagemCompetencia,
     fecharCompetencia,
   } = useSigef()
@@ -63,10 +64,11 @@ export default function InventarioPage() {
   const isCompetenciaFechada = !!fechamentoExistente
 
   // Carrega contagem inicial da competência
+  // (produtos.length na dependência: itens importados por planilha entram com saldo zero)
   useEffect(() => {
     const itens = gerarContagemCompetencia(competenciaSelecionada)
     setItensContagem(itens)
-  }, [competenciaSelecionada, kardex.length])
+  }, [competenciaSelecionada, kardex.length, produtos.length])
 
   // Atualizar contagem digitada pelo usuário
   const atualizarQtdContada = (codigoInventario: string, novaQtd: number) => {

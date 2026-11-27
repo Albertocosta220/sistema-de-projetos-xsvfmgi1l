@@ -38,6 +38,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { Produto } from '@/types/sigef'
 import { CNPJ_REGRA_CFOP_LEGADO } from '@/services/regrasCfopService'
+import {
+  lerPlanilhaSucatas,
+  ResultadoImportacaoPlanilha,
+} from '@/services/importacaoPlanilhaService'
+import { FileSpreadsheet } from 'lucide-react'
+import { useRef } from 'react'
 
 /** Regras CFOP legadas salvas como de-para não pertencem ao catálogo nem à tabela de de-para */
 const naoEhRegraCfop = (dp: { cProd: string; cnpjFornecedor: string }) =>
@@ -56,11 +62,43 @@ export default function ProdutosPage() {
     excluirProduto,
     salvarDePara,
     excluirDePara,
+    importarProdutosPlanilha,
   } = useSigef()
   const { temPermissao } = useAuth()
   const podeExcluir = temPermissao('acao-excluir-registros')
+  const podeImportar = temPermissao('acao-criar-produto')
 
   const deParaList = deParaListBruta.filter(naoEhRegraCfop)
+
+  // Importação de planilha (Sucatas Cadastro)
+  const inputPlanilhaRef = useRef<HTMLInputElement>(null)
+  const [importando, setImportando] = useState(false)
+  const [resumoImportacao, setResumoImportacao] = useState<ResultadoImportacaoPlanilha | null>(null)
+
+  const processarArquivoPlanilha = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // permite reimportar o mesmo arquivo
+    if (!file) return
+    setImportando(true)
+    try {
+      const resultado = await lerPlanilhaSucatas(file)
+      const r = importarProdutosPlanilha(resultado.produtos, {
+        itensParaRevisao: resultado.itensParaRevisao,
+        abaUtilizada: resultado.abaUtilizada,
+      })
+      setResumoImportacao(resultado)
+      if (r.importados === 0) {
+        toast.info(`Nenhum produto novo importado (${r.ignorados} já existente(s)).`)
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error(
+        err instanceof Error ? err.message : 'Falha ao ler a planilha. Verifique o formato.',
+      )
+    } finally {
+      setImportando(false)
+    }
+  }
 
   // Estado para Produto Modal
   const [modalProdutoOpen, setModalProdutoOpen] = useState(false)
@@ -207,6 +245,26 @@ export default function ProdutosPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <input
+            ref={inputPlanilhaRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={processarArquivoPlanilha}
+            aria-hidden="true"
+            tabIndex={-1}
+          />
+          {podeImportar && (
+            <Button
+              onClick={() => inputPlanilhaRef.current?.click()}
+              size="sm"
+              className="bg-[#0E7C86] hover:bg-[#0B636B] text-white text-xs flex items-center gap-1.5"
+              disabled={importando}
+            >
+              <FileSpreadsheet className="size-4" />
+              <span>{importando ? 'Importando…' : 'Importar planilha'}</span>
+            </Button>
+          )}
           <Button
             onClick={abrirNovoProduto}
             size="sm"
@@ -237,6 +295,24 @@ export default function ProdutosPage() {
           </Button>
         </div>
       </div>
+
+      {/* Resumo da última importação de planilha */}
+      {resumoImportacao && (
+        <div className="p-4 bg-teal-50 border border-teal-300 rounded-xl flex items-start gap-3 text-teal-900">
+          <FileSpreadsheet className="size-5 text-teal-700 shrink-0 mt-0.5" />
+          <div className="text-xs sm:text-sm">
+            <span className="font-bold">
+              Planilha "{resumoImportacao.abaUtilizada}" lida: {resumoImportacao.produtos.length}{' '}
+              item(ns) válido(s) de {resumoImportacao.totalLinhas} linha(s).
+            </span>
+            <p className="text-teal-800 mt-0.5">
+              {resumoImportacao.itensParaRevisao > 0
+                ? `${resumoImportacao.itensParaRevisao} item(ns) sinalizado(s) para revisão fiscal (marcados "SEM CORRESPONDÊNCIA" ou com NCM/unidade ausentes) — ocorrência registrada na Auditoria (régua A13).`
+                : 'Nenhum item sinalizado para revisão.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Alerta de Pendências de De-Para se existirem */}
       {pendenciasDePara.length > 0 && (
@@ -390,7 +466,19 @@ export default function ProdutosPage() {
                           {p.codigoInventario}
                         </TableCell>
                         <TableCell className="text-xs font-medium max-w-[240px]">
-                          {p.descricao}
+                          <div className="flex flex-col gap-1">
+                            <span>{p.descricao}</span>
+                            {p.revisar && (
+                              <Badge
+                                variant="outline"
+                                className="w-fit border-amber-400 bg-amber-50 text-amber-800 text-[10px] gap-1"
+                                title={p.observacaoImportacao}
+                              >
+                                <AlertTriangle className="size-3" />
+                                <span>Revisar</span>
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="font-mono text-xs text-slate-600">{p.ncm}</TableCell>
                         <TableCell className="text-xs">
