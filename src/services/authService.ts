@@ -98,6 +98,12 @@ async function hashesCandidatos(senha: string): Promise<string[]> {
     candidatos.add(sha256Js(new TextEncoder().encode(nfc)))
     candidatos.add(await hashSenha(nfc))
   }
+  // Variante sem espaços acidentais de digitação (ex.: espaço no fim do campo).
+  const semEspacos = senha.trim()
+  if (semEspacos && semEspacos !== senha) {
+    candidatos.add(sha256Js(new TextEncoder().encode(semEspacos)))
+    candidatos.add(await hashSenha(semEspacos))
+  }
   return [...candidatos]
 }
 
@@ -276,6 +282,38 @@ export async function entrar(login: string, senha: string): Promise<ResultadoLog
 /** Valida a senha atual de um usuário (ex.: antes de redefinir a própria senha). */
 export async function conferirSenha(usuario: Usuario, senha: string): Promise<boolean> {
   return (await hashesCandidatos(senha)).includes(usuario.senhaHash)
+}
+
+/**
+ * Auto-recuperação de acesso: recadastra a senha de um usuário ADMINISTRADOR
+ * já existente (apaga o hash antigo e grava o novo) e reativa o usuário, para
+ * que o dono do sistema nunca fique preso fora do SIGEF-ME. Se o login
+ * informado não for de um admin e existir exatamente um administrador ativo,
+ * usa esse.
+ */
+export type ResultadoRedefinicaoAdmin =
+  | { ok: true; login: string; nome: string }
+  | { ok: false; motivo: 'USUARIO_NAO_ENCONTRADO' }
+
+export async function redefinirSenhaAdministrador(
+  login: string,
+  novaSenha: string,
+): Promise<ResultadoRedefinicaoAdmin> {
+  const usuarios = carregarUsuarios()
+  const admins = usuarios.filter((u) => u.perfilId === 'perfil-administrador')
+  const chave = login.trim().toLowerCase()
+  const alvo =
+    admins.find((u) => u.login === chave) ?? (admins.length === 1 ? admins[0] : undefined)
+  if (!alvo) return { ok: false, motivo: 'USUARIO_NAO_ENCONTRADO' }
+  const senhaHash = await hashSenha(novaSenha)
+  salvarUsuarios(
+    usuarios.map((u) =>
+      u.id === alvo.id
+        ? { ...u, senhaHash, ativo: true, atualizadoEm: new Date().toISOString() }
+        : u,
+    ),
+  )
+  return { ok: true, login: alvo.login, nome: alvo.nome }
 }
 
 /** Lista de permissões efetivas de um perfil (vazio se o perfil não existir). */

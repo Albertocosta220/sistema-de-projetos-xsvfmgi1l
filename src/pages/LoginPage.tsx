@@ -13,7 +13,14 @@ import { Lock, LogIn, ShieldCheck, User } from 'lucide-react'
  * Nenhum usuário de exemplo é criado — produção oficial.
  */
 export default function LoginPage() {
-  const { pronto, usuarioAtual, precisaOnboarding, entrar, criarAdministrador } = useAuth()
+  const {
+    pronto,
+    usuarioAtual,
+    precisaOnboarding,
+    entrar,
+    criarAdministrador,
+    redefinirSenhaAdmin,
+  } = useAuth()
   const navigate = useNavigate()
 
   // Sessão válida (login recém-feito ou restaurada do boot) → sai da tela de
@@ -36,7 +43,7 @@ export default function LoginPage() {
   if (precisaOnboarding) {
     return <OnboardingAdmin criarAdministrador={criarAdministrador} />
   }
-  return <FormLogin entrar={entrar} />
+  return <FormLogin entrar={entrar} redefinirSenhaAdmin={redefinirSenhaAdmin} />
 }
 
 function OnboardingAdmin({
@@ -143,14 +150,23 @@ function OnboardingAdmin({
 
 function FormLogin({
   entrar,
+  redefinirSenhaAdmin,
 }: {
   entrar: (login: string, senha: string) => Promise<{ ok: boolean; motivo?: string }>
+  redefinirSenhaAdmin: (
+    login: string,
+    novaSenha: string,
+  ) => Promise<{ ok: boolean; motivo?: string }>
 }) {
   const navigate = useNavigate()
   const [login, setLogin] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [entrando, setEntrando] = useState(false)
+  const [modoRecuperacao, setModoRecuperacao] = useState(false)
+  const [novaSenha, setNovaSenha] = useState('')
+  const [confirmar, setConfirmar] = useState('')
+  const [salvando, setSalvando] = useState(false)
 
   const enviar = async (e: FormEvent) => {
     e.preventDefault()
@@ -178,6 +194,109 @@ function FormLogin({
     } finally {
       setEntrando(false)
     }
+  }
+
+  const salvarRecuperacao = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!login.trim()) {
+      setErro('Informe o usuário do administrador.')
+      return
+    }
+    if (novaSenha.length < 6) {
+      setErro('A nova senha deve ter ao menos 6 caracteres.')
+      return
+    }
+    if (novaSenha !== confirmar) {
+      setErro('A confirmação da nova senha não confere.')
+      return
+    }
+    setErro('')
+    setSalvando(true)
+    try {
+      const res = await redefinirSenhaAdmin(login, novaSenha)
+      if (!res.ok) {
+        setErro(
+          res.motivo === 'USUARIO_NAO_ENCONTRADO'
+            ? 'Nenhum usuário administrador encontrado com este login. Confira o usuário informado.'
+            : 'Não foi possível redefinir a senha.',
+        )
+      } else {
+        navigate('/', { replace: true })
+      }
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // Modo recuperação: recadastra a senha do administrador (auto-recuperação de
+  // acesso — o dono do sistema nunca fica preso fora do SIGEF-ME).
+  if (modoRecuperacao) {
+    return (
+      <AuthShell
+        icone={<ShieldCheck className="size-6" />}
+        titulo="Redefinir senha do administrador"
+        subtitulo="Recadastra a senha do usuário administrador existente. Use apenas se a senha foi esquecida."
+      >
+        <form onSubmit={salvarRecuperacao} className="space-y-4" noValidate>
+          <div className="space-y-1.5">
+            <Label htmlFor="rec-login">Usuário do administrador</Label>
+            <Input
+              id="rec-login"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              autoComplete="username"
+              placeholder="Ex.: costa220"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rec-senha">Nova senha *</Label>
+            <Input
+              id="rec-senha"
+              type="password"
+              value={novaSenha}
+              onChange={(e) => setNovaSenha(e.target.value)}
+              autoComplete="new-password"
+              placeholder="Mínimo 6 caracteres"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rec-confirmar">Confirmar nova senha *</Label>
+            <Input
+              id="rec-confirmar"
+              type="password"
+              value={confirmar}
+              onChange={(e) => setConfirmar(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+          {erro && (
+            <p className="text-xs text-rose-700" role="alert">
+              {erro}
+            </p>
+          )}
+          <Button
+            type="submit"
+            className="bg-[#0E7C86] hover:bg-[#0B636B] text-white w-full"
+            disabled={salvando}
+          >
+            {salvando ? 'Salvando…' : 'Redefinir senha e entrar'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setModoRecuperacao(false)
+              setErro('')
+              setNovaSenha('')
+              setConfirmar('')
+            }}
+          >
+            Voltar ao login
+          </Button>
+        </form>
+      </AuthShell>
+    )
   }
 
   return (
@@ -234,6 +353,17 @@ function FormLogin({
         >
           <LogIn className="size-4 mr-1" />
           {entrando ? 'Entrando…' : 'Entrar'}
+        </Button>
+        <Button
+          type="button"
+          variant="link"
+          className="w-full text-xs"
+          onClick={() => {
+            setModoRecuperacao(true)
+            setErro('')
+          }}
+        >
+          Esqueci minha senha — redefinir senha do administrador
         </Button>
       </form>
     </AuthShell>

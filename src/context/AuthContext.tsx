@@ -12,6 +12,7 @@ import {
   entrar as entrarService,
   existeAdministrador,
   hashSenha,
+  redefinirSenhaAdministrador as redefinirSenhaAdministradorService,
   limparSessao,
   permissoesConhecidas,
   salvarPerfis,
@@ -28,6 +29,11 @@ export interface NovoUsuario {
   ativo: boolean
 }
 
+/**
+ * Auto-recuperação de acesso: recadastra a senha do usuário administrador
+ * (apaga o hash antigo e grava o novo), reativando-o. Usada na tela de login
+ * quando a senha é recusada — o dono do sistema nunca fica preso fora.
+ */
 interface AuthContextType {
   // Estado
   pronto: boolean // terminou de carregar usuários/perfis/sessão
@@ -41,6 +47,11 @@ interface AuthContextType {
   entrar: (login: string, senha: string) => Promise<{ ok: boolean; motivo?: string }>
   sair: () => void
   criarAdministrador: (dados: { nome: string; login: string; senha: string }) => Promise<void>
+  /** Auto-recuperação: recadastra a senha do admin existente (tela de login). */
+  redefinirSenhaAdmin: (
+    login: string,
+    novaSenha: string,
+  ) => Promise<{ ok: boolean; motivo?: string }>
 
   // Usuários (ação acao-gerenciar-usuarios)
   criarUsuario: (dados: NovoUsuario) => Promise<{ ok: boolean; motivo?: string }>
@@ -125,6 +136,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Reflui os perfis do localStorage (podem ter mudado em outra aba/boot)
       setPerfis(carregarPerfis())
       iniciarSessao(usuario)
+      return { ok: true }
+    },
+    [iniciarSessao],
+  )
+
+  // Auto-recuperação de acesso: recadastra a senha do administrador existente
+  // (apaga o hash antigo, grava o novo e reativa) e já inicia a sessão.
+  const redefinirSenhaAdmin = useCallback(
+    async (login: string, novaSenha: string) => {
+      const res = await redefinirSenhaAdministradorService(login, novaSenha)
+      if (!res.ok) return { ok: false, motivo: res.motivo }
+      const usuario = carregarUsuarios().find((u) => u.login === res.login)
+      if (usuario) {
+        setUsuarioAtual(usuario)
+        setUsuarios(carregarUsuarios())
+        iniciarSessao(usuario)
+      }
       return { ok: true }
     },
     [iniciarSessao],
@@ -364,6 +392,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       entrar,
       sair,
       criarAdministrador,
+      redefinirSenhaAdmin,
       criarUsuario,
       editarUsuario,
       alternarAtivoUsuario,
@@ -384,6 +413,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       entrar,
       sair,
       criarAdministrador,
+      redefinirSenhaAdmin,
       criarUsuario,
       editarUsuario,
       alternarAtivoUsuario,
