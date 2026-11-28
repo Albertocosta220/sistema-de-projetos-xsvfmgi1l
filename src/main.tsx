@@ -1,15 +1,16 @@
 /// <reference types="vite/client" />
 
 /**
- * Boot à prova de dados corrompidos (5ª e definitiva rodada do crash do login):
+ * Boot à prova de dados corrompidos — MODO SEGURO (definitivo):
  *
- * 1. main.tsx executa primeiro `prepararBoot()` — qualquer exceção em código de
- *    módulo anterior (imports com efeito colateral, localStorage com lixo)
- *    leva à LIMPEZA TOTAL das chaves sigef-* antes do React montar;
+ * 1. Este arquivo executa ANTES de qualquer import de módulo do app: cada chave
+ *    'sigef-*' com JSON quebrado é movida para QUARENTENA
+ *    ('sigef-quarentena-<timestamp>') — preservada para inspeção, nunca usada
+ *    nem apagada silenciosamente — e o boot segue com o resto;
  * 2. o provider de autenticação tem boot try/catch/finally (setPronto sempre);
- * 3. como ÚLTIMA linha de defesa, o ErrorBoundary do app detecta que a queda
- *    aconteceu na rota /login e oferece recuperação total (limpa tudo e
- *    recarrega).
+ *    usuários/perfis ilegíveis são reinicializados como listas vazias;
+ * 3. o bancoService também quarentena chaves inválidas ao hidratar o cache;
+ * 4. como ÚLTIMA linha de defesa, o ErrorBoundary do app oferece recuperação.
  *
  * Assim /login SEMPRE renderiza o formulário — nunca a tela de erro.
  */
@@ -19,15 +20,28 @@ try {
   const chaves: string[] = []
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i)
-    if (k && k.startsWith('sigef')) chaves.push(k)
+    if (k && k.startsWith('sigef') && !k.startsWith('sigef-quarentena-')) chaves.push(k)
   }
   for (const k of chaves) {
     const v = localStorage.getItem(k)
-    // JSON estruturado do sistema: valida; lixo que não parseia é removido.
+    // JSON estruturado do sistema: valida; lixo que não parseia vai para quarentena.
     if (v && (v.startsWith('{') || v.startsWith('['))) {
       try {
         JSON.parse(v)
       } catch {
+        try {
+          localStorage.setItem(
+            `sigef-quarentena-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            JSON.stringify({
+              chaveOriginal: k,
+              motivo: 'JSON inválido detectado no boot',
+              valor: v,
+              em: new Date().toISOString(),
+            }),
+          )
+        } catch {
+          // sem espaço para quarentena: a chave é descartada e o boot segue
+        }
         localStorage.removeItem(k)
       }
     }

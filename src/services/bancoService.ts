@@ -210,7 +210,12 @@ async function escreverChaveNoBanco(chave: string): Promise<void> {
   if (!m) {
     // Chave simples → kv_sigef (chave → valorJson)
     const existente = registroRemoto(
-      { colecao: 'kv_sigef', campoChave: 'chave', campoJson: 'valorJson', extrairChave: (r) => r?.chave ?? '' },
+      {
+        colecao: 'kv_sigef',
+        campoChave: 'chave',
+        campoJson: 'valorJson',
+        extrairChave: (r) => r?.chave ?? '',
+      },
       chave,
     )
     const dados = { chave, valorJson: raw }
@@ -219,7 +224,12 @@ async function escreverChaveNoBanco(chave: string): Promise<void> {
     } else {
       const criado = await pb.collection('kv_sigef').create(dados)
       registrarIdRemoto(
-        { colecao: 'kv_sigef', campoChave: 'chave', campoJson: 'valorJson', extrairChave: (r) => r?.chave ?? '' },
+        {
+          colecao: 'kv_sigef',
+          campoChave: 'chave',
+          campoJson: 'valorJson',
+          extrairChave: (r) => r?.chave ?? '',
+        },
         chave,
         criado.id,
       )
@@ -387,18 +397,42 @@ export async function hidratar(): Promise<void> {
     registrarIds('perfis', perfis, 'nome')
     registrarIds('kv_sigef', kvs, 'chave')
 
-    aplicarChave('sigef_empresas_lista', reconstruirLista(
-      { colecao: 'empresas', campoChave: 'localId', campoJson: 'dadosJson', extrairChave: (r) => r?.localId ?? '' },
-      empresas,
-    ))
-    aplicarChave('sigef-usuarios', reconstruirLista(
-      { colecao: 'usuarios', campoChave: 'login', campoJson: 'dadosJson', extrairChave: (r) => r?.login ?? '' },
-      usuarios,
-    ))
-    aplicarChave('sigef-perfis', reconstruirLista(
-      { colecao: 'perfis', campoChave: 'nome', campoJson: 'dadosJson', extrairChave: (r) => r?.nome ?? '' },
-      perfis,
-    ))
+    aplicarChave(
+      'sigef_empresas_lista',
+      reconstruirLista(
+        {
+          colecao: 'empresas',
+          campoChave: 'localId',
+          campoJson: 'dadosJson',
+          extrairChave: (r) => r?.localId ?? '',
+        },
+        empresas,
+      ),
+    )
+    aplicarChave(
+      'sigef-usuarios',
+      reconstruirLista(
+        {
+          colecao: 'usuarios',
+          campoChave: 'login',
+          campoJson: 'dadosJson',
+          extrairChave: (r) => r?.login ?? '',
+        },
+        usuarios,
+      ),
+    )
+    aplicarChave(
+      'sigef-perfis',
+      reconstruirLista(
+        {
+          colecao: 'perfis',
+          campoChave: 'nome',
+          campoJson: 'dadosJson',
+          extrairChave: (r) => r?.nome ?? '',
+        },
+        perfis,
+      ),
+    )
     for (const s of stores) {
       if (!s?.empresaId) continue
       registrarIds('empresa_stores', [s], 'empresaId')

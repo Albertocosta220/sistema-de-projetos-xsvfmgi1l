@@ -38,9 +38,7 @@ function carregarEmpresasBrutas(): unknown[] {
 }
 
 export function carregarEmpresasCadastradas(): EmpresaLike[] {
-  return carregarEmpresasBrutas().filter(
-    (e): e is EmpresaLike => !!e && typeof e === 'object',
-  )
+  return carregarEmpresasBrutas().filter((e): e is EmpresaLike => !!e && typeof e === 'object')
 }
 
 export interface EmpresaLike {
@@ -114,7 +112,11 @@ export function salvarDadosEmpresa(idEmpresa: string, dados: DadosEmpresaStore):
   gravarRaw(prefixoStore(idEmpresa), JSON.stringify(dados))
 }
 
-export function carregarHistoricoBackups(): Array<{ id: string; criadoEm: string; empresaId: string }> {
+export function carregarHistoricoBackups(): Array<{
+  id: string
+  criadoEm: string
+  empresaId: string
+}> {
   const raw = lerRaw('sigef-backups')
   if (!raw) return []
   try {
@@ -125,10 +127,7 @@ export function carregarHistoricoBackups(): Array<{ id: string; criadoEm: string
   }
 }
 
-export function registrarBackup(
-  empresaId: string,
-  backup: { id: string; criadoEm: string },
-): void {
+export function registrarBackup(empresaId: string, backup: { id: string; criadoEm: string }): void {
   const historico = carregarHistoricoBackups().filter((b) => b?.empresaId === empresaId)
   historico.unshift({ ...backup, empresaId })
   gravarRaw('sigef-backups', JSON.stringify(historico.slice(0, 20)))
