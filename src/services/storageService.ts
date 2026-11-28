@@ -16,10 +16,21 @@ const CHAVE_EMPRESAS = 'sigef_empresas_lista'
 const CHAVE_ID_ATIVA = 'sigef_empresa_ativa_id'
 export const MARCADOR_XML_COMPACTADO = 'sigef:xml-compactado:'
 
+const EMPRESA_VAZIA: Empresa = {
+  id: '',
+  razaoSocial: '',
+  nomeFantasia: '',
+  cnpj: '',
+  inscricaoEstadual: '',
+  uf: '',
+  situacaoCadastral: 'ATIVA',
+  bloquearFechamento: false,
+}
+
 /** Store vazia na forma completa (mesma estrutura de criarStoreVazia). */
 export function storeVazia(empresa?: Empresa): DadosEmpresaStore {
   return {
-    empresa,
+    empresa: empresa ?? EMPRESA_VAZIA,
     produtos: [],
     dePara: [],
     documentos: [],
@@ -135,21 +146,65 @@ export function salvarDadosEmpresa(a: DadosEmpresaStore | string, b?: DadosEmpre
   gravarRaw(prefixoStore(id), JSON.stringify(dados))
 }
 
+/**
+ * Histórico de backups, SEMPRE como lista de registros completos. Registros
+ * antigos (gravados como {id, criadoEm, empresaId}) ganham valores padrão —
+ * a tela de Backup lê versao/dataBackup/descricao/tamanhoKb/dadosJson e um
+ * registro sem eles nunca pode quebrar a listagem nem a restauração.
+ */
 export function carregarHistoricoBackups(): BackupHistorico[] {
   const raw = lerRaw('sigef-backups')
   if (!raw) return []
   try {
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as BackupHistorico[]) : []
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((b): b is Record<string, unknown> => !!b && typeof b === 'object')
+      .map((b, i) => {
+        const r = b as Partial<BackupHistorico> & { id?: string; criadoEm?: string }
+        const dadosJson = typeof r.dadosJson === 'string' ? r.dadosJson : ''
+        return {
+          versao: r.versao || r.id || `v-${i + 1}`,
+          dataBackup: r.dataBackup || r.criadoEm || '',
+          descricao: r.descricao || '',
+          tamanhoKb:
+            typeof r.tamanhoKb === 'number' && r.tamanhoKb > 0
+              ? r.tamanhoKb
+              : Math.max(1, Math.round(dadosJson.length / 1024)),
+          dadosJson,
+        }
+      })
   } catch {
     return []
   }
 }
 
-export function registrarBackup(empresaId: string, backup: { id: string; criadoEm: string }): void {
-  const historico = carregarHistoricoBackups().filter((b) => b?.empresaId === empresaId)
-  historico.unshift({ ...backup, empresaId } as BackupHistorico)
+/** Entrada aceita pelo registrarBackup — descrição + dados (gravados como JSON). */
+export interface EntradaBackup {
+  descricao?: string
+  dados?: unknown
+  criadoEm?: string
+  versao?: string
+}
+
+/**
+ * Registra um backup no histórico da empresa e DEVOLVE o registro gravado
+ * (com versao/dadosJson/tamanhoKb já calculados) — o toast do contexto usa
+ * bkp.versao e a restauração do histórico faz JSON.parse(bkp.dadosJson).
+ */
+export function registrarBackup(empresaId: string, backup: EntradaBackup): BackupHistorico {
+  const dadosJson = backup.dados !== undefined ? JSON.stringify(backup.dados) : ''
+  const historico = carregarHistoricoBackups()
+  const registro: BackupHistorico = {
+    versao: backup.versao || `v-${Date.now()}-${historico.length + 1}`,
+    dataBackup: backup.criadoEm || new Date().toISOString(),
+    descricao: backup.descricao || 'Backup',
+    tamanhoKb: Math.max(1, Math.round(dadosJson.length / 1024)),
+    dadosJson,
+  }
+  historico.unshift({ ...registro, empresaId } as BackupHistorico)
   gravarRaw('sigef-backups', JSON.stringify(historico.slice(0, 20)))
+  return registro
 }
 
 export { hidratar }

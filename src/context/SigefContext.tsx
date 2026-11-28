@@ -39,6 +39,7 @@ import {
   salvarIdEmpresaAtiva,
 } from '@/services/storageService'
 import {
+  criarStoreVazia,
   EMPRESA_PLACEHOLDER,
   limparDadosSeedsOneShot,
   normalizarStore,
@@ -214,8 +215,18 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [historicoBackups, setHistoricoBackups] =
     useState<BackupHistorico[]>(carregarHistoricoBackups)
 
-  // Regras CFOP: entidade própria (fora do de-para de produtos)
-  const [regrasCfop, setRegrasCfop] = useState<RegraCfop[]>(carregarRegrasCfop)
+  // Regras CFOP: entidade própria (fora do de-para de produtos). localStorage
+  // corrompido nunca derruba o boot: o valor vira [] e o app segue abrindo.
+  const [regrasCfop, setRegrasCfop] = useState<RegraCfop[]>(() => {
+    try {
+      const carregadas = carregarRegrasCfop()
+      return Array.isArray(carregadas) ? carregadas : []
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[SIGEF] regras CFOP ignoradas por erro na leitura:', e)
+      return []
+    }
+  })
 
   // Migração one-shot: converte regras antigas salvas como DeParaVigente e limpa o de-para
   useEffect(() => {
@@ -241,8 +252,16 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // documento (tratado) de cada chave de acesso e resolve as A01 obsoletas.
   useEffect(() => {
     if (!empresaAtiva) return
-    const dados = carregarDadosEmpresa(empresaAtiva)
-    setStore(empresaAtiva.id ? limparDuplicadosOneShot(dados, empresaAtiva.id) : dados)
+    // A carga da empresa nunca derruba o app: qualquer erro (storage bloqueado,
+    // JSON corrompido) deixa a store anterior/vazia em pé.
+    try {
+      const dados = carregarDadosEmpresa(empresaAtiva)
+      setStore(empresaAtiva.id ? limparDuplicadosOneShot(dados, empresaAtiva.id) : dados)
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[SIGEF] carga da empresa ignorada por erro:', e)
+      setStore(criarStoreVazia(empresaAtiva))
+    }
   }, [empresaAtiva.id])
 
   // Salva store sempre que atualizar
@@ -1217,7 +1236,10 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dataExportacao: new Date().toISOString(),
       versaoSigef: '2.0-web',
     }
-    const bkp = registrarBackup(`Backup manual ${empresaAtiva.nomeFantasia}`, dados)
+    const bkp = registrarBackup(empresaAtiva.id, {
+      descricao: `Backup manual ${empresaAtiva.nomeFantasia}`,
+      dados,
+    })
     setHistoricoBackups(carregarHistoricoBackups())
 
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' })
@@ -1240,14 +1262,31 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toast.error('Arquivo JSON não possui estrutura válida de backup do SIGEF-ME.')
         return false
       }
-      salvarDadosEmpresa(parsed.store)
-      registrarBackup(`Restauração de backup externo: ${parsed.store.empresa.nomeFantasia}`, parsed)
-      setHistoricoBackups(carregarHistoricoBackups())
-      setStore(parsed.store)
+      // CRASH 'reading map': um backup antigo/corrompido com listas ausentes
+      // (documentos, kardex, fechamentos...) injetava undefined na store e o
+      // primeiro .map derrubava o app — inclusive no boot do /login. A store
+      // importada passa pela MESMA normalização da carga normal: todas as
+      // listas viram array e entradas null são filtradas antes do setStore.
+      const storeNormalizada = normalizarStore(parsed.store as DadosEmpresaStore)
+      salvarDadosEmpresa(empresaAtiva.id, storeNormalizada)
+      try {
+        registrarBackup(empresaAtiva.id, {
+          descricao: `Restauração de backup externo: ${storeNormalizada.empresa?.nomeFantasia ?? 'empresa'}`,
+          dados: parsed,
+        })
+        setHistoricoBackups(carregarHistoricoBackups())
+      } catch (e) {
+        // Falha ao registrar o histórico não pode abortar a restauração.
+        // eslint-disable-next-line no-console
+        console.error('[SIGEF] registro de backup ignorado:', e)
+      }
+      setStore(storeNormalizada)
       toast.success('Backup restaurado com sucesso! Os dados foram atualizados no navegador.')
       return true
     } catch (e) {
-      console.error(e)
+      // Backup corrompido é IGNORADO com aviso — nunca lança.
+      // eslint-disable-next-line no-console
+      console.error('[SIGEF] importação de backup falhou:', e)
       toast.error('Falha ao processar arquivo JSON de backup.')
       return false
     }
@@ -1256,15 +1295,26 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const restaurarBackupHistorico = (versao: string) => {
     const bkp = historicoBackups.find((b) => b.versao === versao)
     if (!bkp) return
+    if (!bkp.dadosJson) {
+      // Registro antigo sem dadosJson (v0.x gravava só id/criadoEm): nada a restaurar.
+      toast.error('Esta versão do histórico não contém os dados completos (registro antigo).')
+      return
+    }
     try {
       const parsed = JSON.parse(bkp.dadosJson)
       if (parsed.store) {
-        salvarDadosEmpresa(parsed.store)
-        setStore(parsed.store)
+        // Mesma blindagem da importação: listas ausentes/corrompidas viram []
+        // e entradas null são filtradas antes de entrar na store.
+        const storeNormalizada = normalizarStore(parsed.store as DadosEmpresaStore)
+        salvarDadosEmpresa(empresaAtiva.id, storeNormalizada)
+        setStore(storeNormalizada)
         toast.success(`Versão ${versao} restaurada com sucesso.`)
+      } else {
+        toast.error('Registro de backup sem a estrutura de dados do SIGEF-ME.')
       }
     } catch (e) {
-      console.error(e)
+      // eslint-disable-next-line no-console
+      console.error('[SIGEF] restauração do histórico falhou:', e)
       toast.error('Erro ao restaurar versão do histórico.')
     }
   }
