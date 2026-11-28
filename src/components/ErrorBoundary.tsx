@@ -4,6 +4,7 @@
 // voltar ao Painel e registra o erro na régua de auditoria (console como
 // fallback, pois o boundary pode ser montado fora do SigefContext).
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { limparChavesSigef } from '@/services/bancoService'
 import { AlertTriangle, Home, RefreshCw } from 'lucide-react'
 
 interface PropsBoundary {
@@ -17,13 +18,23 @@ interface PropsBoundary {
   fallbackTelaCheia?: boolean
   /** Texto explicativo adicional, contextual ao bloco protegido. */
   textoErro?: string
+  /**
+   * Modo seguro (boot): se uma exceção escapar durante a inicialização do
+   * sistema de dados, põe as chaves sigef-* corrompidas em quarentena e
+   * recarrega UMA única vez — o resultado é a tela de login normal, nunca o
+   * ErrorBoundary em /login.
+   */
+  modoSeguro?: boolean
 }
 
 interface EstadoBoundary {
   erro: Error | null
+  /** true enquanto o modo seguro recarrega a página (fallback neutro). */
+  recuperando: boolean
 }
 
 const CHAVE_LOG_ERROS = 'sigef-erros-runtime'
+const CHAVE_RELOAD_SEGURO = 'sigef-reload-seguro'
 
 /** Loga o erro no localStorage (régua de auditoria técnica do sistema). */
 function registrarErroAuditoria(rotulo: string, erro: Error, info: ErrorInfo): void {
@@ -48,26 +59,63 @@ function registrarErroAuditoria(rotulo: string, erro: Error, info: ErrorInfo): v
 }
 
 export class ErrorBoundary extends Component<PropsBoundary, EstadoBoundary> {
-  state: EstadoBoundary = { erro: null }
+  state: EstadoBoundary = { erro: null, recuperando: false }
 
-  static getDerivedStateFromError(erro: Error): EstadoBoundary {
+  static getDerivedStateFromError(erro: Error): Partial<EstadoBoundary> {
     return { erro }
   }
 
   componentDidCatch(erro: Error, info: ErrorInfo) {
-    registrarErroAuditoria(this.props.rotulo ?? 'bloco sem rótulo', erro, info)
+    const rotulo = this.props.rotulo ?? 'bloco sem rótulo'
+    registrarErroAuditoria(rotulo, erro, info)
+
+    // Modo seguro (item 4 da blindagem de boot): uma exceção que escapou de
+    // toda a proteção do SigefContext/storageService durante a inicialização
+    // indica dados corrompidos no localStorage. Limpa as chaves sigef-* e
+    // recarrega uma única vez — o usuário cai na tela de login normal, com
+    // o sistema vazio, em vez do ErrorBoundary. Se o reload já aconteceu
+    // nesta sessão e o erro volta, mostramos o fallback normal (sem loop).
+    if (this.props.modoSeguro && !this.state.recuperando) {
+      try {
+        const jaRecarregou = sessionStorage.getItem(CHAVE_RELOAD_SEGURO) === '1'
+        if (!jaRecarregou) {
+          sessionStorage.setItem(CHAVE_RELOAD_SEGURO, '1')
+          limparChavesSigef()
+          this.setState({ recuperando: true })
+          window.location.reload()
+          return
+        }
+      } catch {
+        // sessionStorage indisponível: sem modo seguro, cai no fallback normal.
+      }
+    }
   }
 
   private voltarAoPainel = () => {
-    this.setState({ erro: null })
+    this.setState({ erro: null, recuperando: false })
     window.location.assign('/')
   }
 
   private tentarNovamente = () => {
-    this.setState({ erro: null })
+    this.setState({ erro: null, recuperando: false })
   }
 
   render() {
+    if (this.state.recuperando) {
+      // Fallback neutro durante o reload do modo seguro — nunca o ErrorBoundary.
+      return (
+        <div
+          className="min-h-dvh flex items-center justify-center p-4"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-sm text-[var(--sig-muted)]">
+            Preparando o SIGEF-ME com os dados protegidos…
+          </p>
+        </div>
+      )
+    }
+
     if (this.state.erro) {
       const rotulo = this.props.rotulo ?? 'esta área'
       const mensagemTecnica = this.state.erro.message || String(this.state.erro)

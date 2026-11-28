@@ -228,22 +228,39 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   })
 
-  // Migração one-shot: converte regras antigas salvas como DeParaVigente e limpa o de-para
+  // Migração one-shot: converte regras antigas salvas como DeParaVigente e limpa o de-para.
+  // Try/catch completo: qualquer erro aqui (de-para corrompido, storage bloqueado)
+  // NUNCA derruba o provider — e com ele o /login, aninhado abaixo do SigefProvider.
   useEffect(() => {
-    setStore((prev) => {
-      const { regras, deParaLimpo, migradas } = migrarRegrasCfopLegadas(regrasCfop, prev.dePara)
-      if (migradas === 0 && deParaLimpo === prev.dePara) return prev
-      if (migradas > 0) {
-        salvarRegrasCfop(regras)
-        setRegrasCfop(regras)
-      }
-      if (deParaLimpo !== prev.dePara) {
-        const atualizado = { ...prev, dePara: deParaLimpo }
-        salvarDadosEmpresa(atualizado)
-        return atualizado
-      }
-      return prev
-    })
+    try {
+      setStore((prev) => {
+        const { regras, deParaLimpo, migradas } = migrarRegrasCfopLegadas(regrasCfop, prev.dePara)
+        if (migradas === 0 && deParaLimpo === prev.dePara) return prev
+        if (migradas > 0) {
+          try {
+            salvarRegrasCfop(regras)
+            setRegrasCfop(regras)
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.error('[SIGEF] gravação das regras CFOP migradas ignorada:', e)
+          }
+        }
+        if (deParaLimpo !== prev.dePara) {
+          const atualizado = { ...prev, dePara: deParaLimpo }
+          try {
+            salvarDadosEmpresa(atualizado)
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.error('[SIGEF] gravação do de-para migrado ignorada:', e)
+          }
+          return atualizado
+        }
+        return prev
+      })
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[SIGEF] migração de regras CFOP ignorada por erro:', e)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

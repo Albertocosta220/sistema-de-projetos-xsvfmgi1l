@@ -101,40 +101,59 @@ const TELA_POR_ROTA_ROTULO: Record<string, string> = Object.fromEntries(
   Object.entries(TELA_POR_ROTA).map(([rota, tela]) => [rota, tela.label]),
 )
 
+/**
+ * /login FORA do SigefProvider (causa raiz histórica do ErrorBoundary no
+ * login): qualquer exceção durante o boot do provider de dados fiscais —
+ * store corrompida, migração que falhe, lista ausente — derrubava a árvore
+ * inteira, inclusive a tela de login aninhada dentro dela. Agora o login
+ * monta apenas com o AuthProvider (boot próprio try/catch/finally) e o
+ * sistema de dados só existe nas rotas autenticadas.
+ */
+function RotasPorSessao() {
+  const location = useLocation()
+
+  if (location.pathname === '/login') {
+    return (
+      <ErrorBoundary rotulo="da tela Login">
+        <LoginPage />
+      </ErrorBoundary>
+    )
+  }
+
+  return (
+    <ErrorBoundary rotulo="do sistema de dados" modoSeguro>
+      <SigefProvider>
+        <Routes>
+          <Route element={<Layout />}>
+            {ROTAS.map(({ path, element }) => (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <ErrorBoundary rotulo={`da tela ${TELA_POR_ROTA_ROTULO[path] ?? path}`}>
+                    <RotaProtegida>{element}</RotaProtegida>
+                  </ErrorBoundary>
+                }
+              />
+            ))}
+          </Route>
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </SigefProvider>
+    </ErrorBoundary>
+  )
+}
+
 const App = () => (
   <BrowserRouter>
     <ErrorBoundary rotulo="do sistema">
       <AuthProvider>
-        <SigefProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner position="bottom-right" richColors />
-            <Routes>
-              <Route
-                path="/login"
-                element={
-                  <ErrorBoundary rotulo="da tela Login">
-                    <LoginPage />
-                  </ErrorBoundary>
-                }
-              />
-              <Route element={<Layout />}>
-                {ROTAS.map(({ path, element }) => (
-                  <Route
-                    key={path}
-                    path={path}
-                    element={
-                      <ErrorBoundary rotulo={`da tela ${TELA_POR_ROTA_ROTULO[path] ?? path}`}>
-                        <RotaProtegida>{element}</RotaProtegida>
-                      </ErrorBoundary>
-                    }
-                  />
-                ))}
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </TooltipProvider>
-        </SigefProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner position="bottom-right" richColors />
+          <RotasPorSessao />
+        </TooltipProvider>
       </AuthProvider>
     </ErrorBoundary>
   </BrowserRouter>
