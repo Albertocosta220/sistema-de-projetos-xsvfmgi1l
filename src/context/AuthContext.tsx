@@ -38,16 +38,20 @@ export interface NovoUsuario {
  * PocketBase via bancoService (espelho local para uso offline).
  */
 
+// `motivo?: undefined` no braço de sucesso: mantém o motivo acessível nas telas
+// (strict:false não estreita a união pelo discriminante em todos os pontos).
 type ResultadoEdicaoUsuario =
-  | { ok: true }
+  | { ok: true; motivo?: undefined }
   | { ok: false; motivo: 'LOGIN_DUPLICADO' | 'ULTIMO_ADMIN' }
 type ResultadoCriacaoUsuario =
-  | { ok: true; usuario: Usuario }
+  | { ok: true; usuario: Usuario; motivo?: undefined }
   | { ok: false; motivo: 'LOGIN_DUPLICADO' }
 type ResultadoAlternanciaUsuario =
-  | { ok: true }
+  | { ok: true; motivo?: undefined }
   | { ok: false; motivo: 'ULTIMO_ADMIN' | 'USUARIO_NAO_ENCONTRADO' }
-type ResultadoRedefinicaoSenha = { ok: true } | { ok: false; motivo: 'USUARIO_NAO_ENCONTRADO' }
+type ResultadoRedefinicaoSenha =
+  | { ok: true; motivo?: undefined }
+  | { ok: false; motivo: 'USUARIO_NAO_ENCONTRADO' }
 
 interface AuthContextValor {
   pronto: boolean

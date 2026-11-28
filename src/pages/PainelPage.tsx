@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useSigef } from '@/context/SigefContext'
+import { calcularTotaisDashboard } from '@/services/totaisDashboardService'
 import {
   AlertOctagon,
   AlertTriangle,
@@ -9,11 +10,9 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Coins,
   FileSpreadsheet,
   Package,
   ShieldCheck,
-  TrendingUp,
   Upload,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { PainelIndicadoresFiscais } from '@/components/PainelIndicadoresFiscais'
 import { SeletorCompetencia } from '@/components/SeletorCompetencia'
 import { OnboardingPrimeiraEmpresa } from '@/components/OnboardingPrimeiraEmpresa'
+import { brl, num } from '@/components/shell'
 import {
   Table,
   TableBody,
@@ -30,6 +30,36 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+
+/** KPI clicável do dashboard de totais (estilo kpi-b do shell, com navegação). */
+function KpiTotal({
+  label,
+  value,
+  hint,
+  to,
+  tone = 'accent',
+  toneValue,
+}: {
+  label: string
+  value: React.ReactNode
+  hint?: React.ReactNode
+  to: string
+  tone?: 'accent' | 'verde' | 'ambar' | 'vermelho'
+  toneValue?: string
+}) {
+  return (
+    <Link
+      to={to}
+      className={`kpi-b tone-${tone} block group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]`}
+    >
+      <span className="kpi-label">{label}</span>
+      <span className={`kpi-value block group-hover:text-[var(--accent-text)] ${toneValue ?? ''}`}>
+        {value}
+      </span>
+      {hint ? <span className="kpi-hint block">{hint}</span> : null}
+    </Link>
+  )
+}
 
 export default function PainelPage() {
   const { empresaAtiva, produtos, documentos, kardex, ocorrencias, fechamentos, periodoAtivo } =
@@ -53,40 +83,21 @@ export default function PainelPage() {
     )
   }
 
-  // Cálculos consolidados para o Painel
-  const saldoTotalValor = produtos.reduce((total, p) => {
-    const movs = kardex.filter((k) => k.codigoInventario === p.codigoInventario)
-    const ultimo = movs[movs.length - 1]
-    return total + (ultimo ? ultimo.saldoValorTotal : 0)
-  }, 0)
-
-  const saldoTotalQuantidade = produtos.reduce((total, p) => {
-    const movs = kardex.filter((k) => k.codigoInventario === p.codigoInventario)
-    const ultimo = movs[movs.length - 1]
-    return total + (ultimo ? ultimo.saldoQuantidade : 0)
-  }, 0)
-
-  const documentosProcessados = documentos.filter((d) => d.status === 'PROCESSADO').length
-  // Pendência de De-Para real: documentos em espera na fila EXCETO os que têm
-  // marca derivada de desqualificação / "não controla estoque" / "não vincular"
-  // — esses NÃO são pendência nem erro (regra CNPJ+cProd gravada; não há
-  // vínculo a resolver). Mesmo filtro defensivo do indicadoresFiscais.
-  const documentosAguardandoDePara = documentos.filter(
-    (d) =>
-      d.status === 'AGUARDANDO_DE_PARA' &&
-      !d.desqualificadaParaInventario &&
-      !d.naoControlaEstoque &&
-      !d.naoVinculaEstoque,
-  ).length
-  const documentosDuplicidade = documentos.filter((d) => d.status === 'DUPLICIDADE').length
-  const saídasBloqueadas = kardex.filter((k) => k.bloqueadoSaldoNegativo).length
-
-  const ocorrenciasPendentes = ocorrencias.filter((o) => !o.resolvido)
-  const ocorrenciasBloqueantes = ocorrenciasPendentes.filter(
-    (o) => o.severidade === 'BLOQUEANTE',
-  ).length
+  // Dashboard de totais — derivado dos dados reais da empresa ativa
+  // (isolamento multiempresa: o contexto só expõe a store da empresa ativa).
+  const totais = calcularTotaisDashboard({ produtos, documentos, kardex, ocorrencias })
+  const { documentos: docs, movimentacao, alertas } = totais
 
   const ultimoFechamento = fechamentos[fechamentos.length - 1]
+
+  // Resumo compacto dos status da fila (mostra só o que existe nos dados).
+  const partesStatus: string[] = []
+  if (docs.processado > 0) partesStatus.push(`Processadas: ${docs.processado}`)
+  if (docs.pendente > 0) partesStatus.push(`Pendentes: ${docs.pendente}`)
+  if (docs.aguardandoDePara > 0) partesStatus.push(`Aguardando De-Para: ${docs.aguardandoDePara}`)
+  if (docs.erro > 0) partesStatus.push(`Erro: ${docs.erro}`)
+  if (docs.duplicidade > 0) partesStatus.push(`Duplicidade: ${docs.duplicidade}`)
+  if (docs.cancelado > 0) partesStatus.push(`Canceladas: ${docs.cancelado}`)
 
   return (
     <div className="space-y-6">
@@ -157,125 +168,81 @@ export default function PainelPage() {
         </div>
       )}
 
-      {/* Métricas Principais — bento grid com cartão escuro de destaque */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-slate-200 sm:col-span-2 card-destaque">
-          <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
-            <div className="min-w-0">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Valor Total do Estoque
-              </CardTitle>
-              <div className="text-2xl font-extrabold text-white mt-1">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                  saldoTotalValor,
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                <TrendingUp className="size-3 text-blue-300" />
-                Custo Médio Ponderado (CMP) ativo
-              </p>
-            </div>
-            <Coins className="size-6 text-blue-300 shrink-0" />
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-center gap-2">
-            <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700">
-              <Link to="/importar">
-                <Upload className="size-4 mr-1.5" />
-                Importar NF-e
-              </Link>
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              className="bg-white/10 text-white hover:bg-white/20 border border-white/20"
-            >
-              <Link to="/inventario">Fechar Competência</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Volume Físico Escriturado
-            </CardTitle>
-            <Package className="size-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold text-slate-900">
-              {saldoTotalQuantidade.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}{' '}
-              <span className="text-sm font-normal text-slate-500">un/kg/mt</span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Distribuído em {produtos.length} produtos cadastrados
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Pendências de De-Para
-            </CardTitle>
-            <Clock
-              className={`size-4 ${
-                documentosAguardandoDePara > 0 ? 'text-amber-600' : 'text-slate-400'
-              }`}
-            />
-          </CardHeader>
-          <CardContent>
-            <div
-              className={`text-2xl font-extrabold ${
-                documentosAguardandoDePara > 0 ? 'text-amber-700' : 'text-slate-900'
-              }`}
-            >
-              {documentosAguardandoDePara}{' '}
-              <span className="text-sm font-normal text-slate-500">NF-e(s)</span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              {documentosAguardandoDePara > 0 ? (
-                <Link to="/produtos" className="text-amber-700 underline font-medium">
-                  Resolver vínculos pendentes →
-                </Link>
-              ) : (
-                'Todos os itens de fornecedores mapeados'
-              )}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Auditoria Fiscal (A01-A12)
-            </CardTitle>
-            <ShieldCheck
-              className={`size-4 ${
-                ocorrenciasBloqueantes > 0 ? 'text-rose-600' : 'text-emerald-600'
-              }`}
-            />
-          </CardHeader>
-          <CardContent>
-            <div
-              className={`text-2xl font-extrabold ${
-                ocorrenciasBloqueantes > 0 ? 'text-rose-700' : 'text-slate-900'
-              }`}
-            >
-              {ocorrenciasPendentes.length}{' '}
-              <span className="text-sm font-normal text-slate-500">ocorrência(s)</span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              {ocorrenciasBloqueantes > 0 ? (
-                <span className="text-rose-600 font-semibold">
-                  {ocorrenciasBloqueantes} bloqueante(s) de fechamento
-                </span>
-              ) : (
-                'Nenhuma infração impeditiva'
-              )}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* ===== Dashboard de totais (cartões clicáveis) ===== */}
+      <section aria-labelledby="titulo-totais">
+        <h2 id="titulo-totais" className="text-lg font-bold text-slate-900 mb-3">
+          Dashboard de totais
+        </h2>
+        <div className="kpi-grid">
+          <KpiTotal
+            label="Valor total do estoque"
+            value={brl(totais.valorTotalEstoque)}
+            hint={`CMP ativo sobre ${totais.itensComEstoque} item(ns) com saldo`}
+            to="/kardex"
+            tone="accent"
+          />
+          <KpiTotal
+            label="Produtos cadastrados"
+            value={num(totais.totalProdutos, 0)}
+            hint={`Volume físico escriturado: ${num(totais.quantidadeTotalEstoque, 2)}`}
+            to="/produtos"
+            tone="verde"
+          />
+          <KpiTotal
+            label="Documentos importados"
+            value={num(docs.total, 0)}
+            hint={partesStatus.length > 0 ? partesStatus.join(' · ') : 'Nenhuma NF-e na fila'}
+            to="/importar"
+            tone="accent"
+          />
+          <KpiTotal
+            label="Total de entradas"
+            value={num(movimentacao.entradasQtd, 2)}
+            hint={
+              movimentacao.temMovimentos
+                ? `${brl(movimentacao.entradasValor)} em valor de entrada`
+                : 'Sem movimentações no Kardex'
+            }
+            to="/kardex"
+            tone="verde"
+          />
+          <KpiTotal
+            label="Total de saídas"
+            value={num(movimentacao.saidasQtd, 2)}
+            hint={
+              movimentacao.temMovimentos
+                ? `${brl(movimentacao.saidasValor)} em valor de saída`
+                : 'Sem movimentações no Kardex'
+            }
+            to="/kardex"
+            tone="accent"
+          />
+          <KpiTotal
+            label="Pendências de De-Para"
+            value={num(totais.pendenciasDePara, 0)}
+            hint={
+              totais.pendenciasDePara > 0
+                ? 'NF-e(s) aguardando vínculo de itens'
+                : 'Todos os itens de fornecedores mapeados'
+            }
+            to="/produtos"
+            tone={totais.pendenciasDePara > 0 ? 'ambar' : 'verde'}
+            toneValue={totais.pendenciasDePara > 0 ? 'text-[var(--ambar)]' : undefined}
+          />
+          <KpiTotal
+            label="Alertas ativos"
+            value={num(alertas.total, 0)}
+            hint={
+              alertas.total > 0
+                ? `${alertas.ocorrenciasPendentes} ocorrência(s) · ${alertas.saldosNegativos} saldo(s) negativo(s)`
+                : 'Nenhuma ocorrência ou saldo negativo'
+            }
+            to="/auditoria"
+            tone={alertas.total > 0 ? 'vermelho' : 'verde'}
+            toneValue={alertas.total > 0 ? 'text-[var(--vermelho)]' : undefined}
+          />
+        </div>
+      </section>
 
       {/* Dashboard de Indicadores Fiscais (resumo, totais, evolução e ranking) */}
       <PainelIndicadoresFiscais />
@@ -442,54 +409,54 @@ export default function PainelPage() {
           </Card>
         </div>
 
-        {/* Coluna Lateral: Resumo de Alertas, Documentos e Fechamento */}
+        {/* Coluna Lateral: Fila de Documentos, Alertas e Fechamento */}
         <div className="space-y-4">
           {/* Status dos Documentos na Fila */}
           <Card className="border-slate-200">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-bold">Fila de Documentos NF-e</CardTitle>
               <CardDescription className="text-xs">
-                {documentos.length} notas escrituradas ou na fila
+                {docs.total} notas escrituradas ou na fila
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between text-xs p-2 rounded bg-slate-50 border">
-                <span className="font-medium text-slate-700">Processadas</span>
-                <Badge
-                  variant="outline"
-                  className="bg-emerald-50 text-emerald-700 border-emerald-200"
+              {(
+                [
+                  ['Processadas', docs.processado, 'emerald'],
+                  ['Pendentes', docs.pendente, 'slate'],
+                  ['Aguardando De-Para', docs.aguardandoDePara, 'ambar'],
+                  ['Com erro', docs.erro, 'rose'],
+                  ['Duplicidades (A01)', docs.duplicidade, 'rose'],
+                  ['Canceladas', docs.cancelado, 'slate'],
+                ] as [string, number, string][]
+              ).map(([rotulo, quantidade, cor]) => (
+                <div
+                  key={rotulo}
+                  className="flex items-center justify-between text-xs p-2 rounded bg-slate-50 border"
                 >
-                  {documentosProcessados}
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between text-xs p-2 rounded bg-slate-50 border">
-                <span className="font-medium text-slate-700">Aguardando De-Para</span>
-                <Badge
-                  variant={documentosAguardandoDePara > 0 ? 'destructive' : 'outline'}
-                  className={documentosAguardandoDePara > 0 ? '' : 'text-slate-600'}
-                >
-                  {documentosAguardandoDePara}
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between text-xs p-2 rounded bg-slate-50 border">
-                <span className="font-medium text-slate-700">Duplicidades (A01)</span>
-                <Badge
-                  variant={documentosDuplicidade > 0 ? 'destructive' : 'outline'}
-                  className={documentosDuplicidade > 0 ? '' : 'text-slate-600'}
-                >
-                  {documentosDuplicidade}
-                </Badge>
-              </div>
+                  <span className="font-medium text-slate-700">{rotulo}</span>
+                  <Badge
+                    variant={quantidade > 0 && cor !== 'emerald' ? 'destructive' : 'outline'}
+                    className={
+                      cor === 'emerald' && quantidade > 0
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : quantidade === 0
+                          ? 'text-slate-600'
+                          : ''
+                    }
+                  >
+                    {quantidade}
+                  </Badge>
+                </div>
+              ))}
 
               <div className="flex items-center justify-between text-xs p-2 rounded bg-slate-50 border">
                 <span className="font-medium text-slate-700">Saídas Bloqueadas (A03)</span>
                 <Badge
-                  variant={saídasBloqueadas > 0 ? 'destructive' : 'outline'}
-                  className={saídasBloqueadas > 0 ? '' : 'text-slate-600'}
+                  variant={movimentacao.movimentosBloqueados > 0 ? 'destructive' : 'outline'}
+                  className={movimentacao.movimentosBloqueados === 0 ? 'text-slate-600' : ''}
                 >
-                  {saídasBloqueadas}
+                  {movimentacao.movimentosBloqueados}
                 </Badge>
               </div>
 

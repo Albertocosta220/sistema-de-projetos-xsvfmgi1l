@@ -46,7 +46,11 @@ export function storeVazia(empresa?: Empresa): DadosEmpresaStore {
 /** Aceita id (string) ou o objeto empresa — o contexto chama das duas formas. */
 function idDaEmpresa(empresa: string | { id?: unknown } | null | undefined): string {
   if (typeof empresa === 'string') return empresa
-  if (empresa && typeof empresa === 'object' && typeof (empresa as { id?: unknown }).id === 'string')
+  if (
+    empresa &&
+    typeof empresa === 'object' &&
+    typeof (empresa as { id?: unknown }).id === 'string'
+  )
     return empresa.id as string
   return ''
 }

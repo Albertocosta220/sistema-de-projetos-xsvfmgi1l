@@ -50,7 +50,7 @@ export default function LoginPage() {
 function OnboardingAdmin({
   criarAdministrador,
 }: {
-  criarAdministrador: (d: { nome: string; login: string; senha: string }) => Promise<void>
+  criarAdministrador: (d: { nome: string; login: string; senha: string }) => Promise<unknown>
 }) {
   const [nome, setNome] = useState('')
   const [login, setLogin] = useState('')
