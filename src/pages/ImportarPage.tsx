@@ -57,6 +57,7 @@ import { itemNaoVinculado } from '@/services/desqualificacaoService'
 import { useAuth } from '@/context/AuthContext'
 import { EspelhoNFeDialogBody } from '@/components/EspelhoNFe'
 import { DialogoDesqualificarNota } from '@/components/DialogoDesqualificarNota'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { MARCADOR_XML_COMPACTADO } from '@/services/storageService'
 
 export default function ImportarPage() {
@@ -648,7 +649,7 @@ export default function ImportarPage() {
                               variant="ghost"
                               size="sm"
                               className="h-6 px-1.5 text-[10px]"
-                              onClick={() => setDocEspelho(doc)}
+                              onClick={() => setDocEspelho(doc ?? null)}
                               title="Consultar o XML: espelho completo da NF-e com protocolos e eventos"
                             >
                               <FileSearch className="size-3 mr-0.5" aria-hidden="true" />
@@ -843,15 +844,23 @@ export default function ImportarPage() {
           <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between gap-2">
-                <span className="text-teal-800">Espelho da NF-e nº {docEspelho.numero}</span>
-                {getStatusBadge(docEspelho.status)}
+                <span className="text-teal-800">
+                  Espelho da NF-e nº {docEspelho?.numero ?? '—'}
+                </span>
+                {docEspelho?.status ? getStatusBadge(docEspelho.status) : null}
               </DialogTitle>
               <DialogDescription className="font-mono text-xs break-all">
-                Chave: {docEspelho.chaveAcesso}
+                Chave: {docEspelho?.chaveAcesso || '—'}
               </DialogDescription>
             </DialogHeader>
 
-            <EspelhoNFeDialogBody doc={docEspelho} />
+            <ErrorBoundary
+              rotulo="do espelho da NF-e"
+              fallbackTelaCheia={false}
+              textoErro="Ocorreu um erro ao montar o espelho desta nota — normalmente o XML importado em versão antiga está incompleto. Feche e reimporte o XML original desta NF-e."
+            >
+              <EspelhoNFeDialogBody doc={docEspelho} />
+            </ErrorBoundary>
 
             <DialogFooter>
               <Button variant="secondary" onClick={() => setDocEspelho(null)}>

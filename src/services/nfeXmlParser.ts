@@ -78,7 +78,10 @@ export function extrairParticipante(bloco: string, nomePadrao: string): Particip
  * 2102xx e quaisquer outros) presentes no XML.
  */
 export function extrairEspelho(xml: string, itens: ItemNFe[], vNF: number): EspelhoNFe {
-  const cleanXml = xml.trim()
+  // XML ausente/não-texto nunca derruba a extração — espelho vazio, sem crash.
+  const cleanXml = typeof xml === 'string' ? xml.trim() : ''
+  const itensSeguros = Array.isArray(itens) ? itens : []
+  const somaItens = itensSeguros.reduce((s, i) => s + (i?.vProd || 0), 0)
 
   // Protocolo de autorização (protNFe/infProt)
   const protBlock = getTagText(cleanXml, 'protNFe')
@@ -154,12 +157,13 @@ export function extrairEspelho(xml: string, itens: ItemNFe[], vNF: number): Espe
   const totalBlock = getTagText(cleanXml, 'ICMSTot') || getTagText(cleanXml, 'total')
   const toNum = (tag: string): number | undefined => {
     const raw = getTagText(totalBlock, tag)
-    return raw ? parseFloat(raw) : undefined
+    const n = raw ? parseFloat(raw) : NaN
+    return Number.isNaN(n) ? undefined : n
   }
   const totais = {
     vBC: toNum('vBC'),
     vICMS: toNum('vICMS'),
-    vProd: toNum('vProd') ?? itens.reduce((s, i) => s + i.vProd, 0),
+    vProd: toNum('vProd') ?? somaItens,
     vFrete: toNum('vFrete'),
     vSeg: toNum('vSeg'),
     vDesc: toNum('vDesc'),
@@ -195,7 +199,11 @@ function classificarEvento(codigo: string): EventoNFe['tipo'] {
 // chamador recebeu um documento do storage (dados estruturados íntegros) e
 // tentaria reconstruí-lo do XML, que foi descartado.
 export function parseNFeXml(xmlString: string, empresaAtivaCnpj: string): DocumentoFiscal {
-  const cleanXml = xmlString.trim()
+  // XML ausente/não-texto não pode derrubar a importação inteira.
+  const cleanXml = typeof xmlString === 'string' ? xmlString.trim() : ''
+  if (!cleanXml) {
+    throw new Error('XML vazio ou inválido — arquivo corrompido ou não é uma NF-e.')
+  }
 
   // Defesa: o marcador de cota significa "dados estruturados íntegros, XML bruto
   // descartado" — re-parsear o marcador geraria um documento vazio (chave '',
@@ -238,51 +246,67 @@ export function parseNFeXml(xmlString: string, empresaAtivaCnpj: string): Docume
     tipoOperacao = tpNF === '0' ? 'ENTRADA' : 'ENTRADA'
   }
 
-  // Itens <det>
+  // Itens <det> — bloco de item ilegível é pulado, não derruba a importação.
   const detBlocks = getAllTags(cleanXml, 'det')
   const itens: ItemNFe[] = detBlocks.map((detXml, index) => {
-    const prodBlock = getTagText(detXml, 'prod')
-    const impostoBlock = getTagText(detXml, 'imposto')
+    try {
+      const prodBlock = getTagText(detXml, 'prod')
+      const impostoBlock = getTagText(detXml, 'imposto')
 
-    const cProd = getTagText(prodBlock, 'cProd') || `ITEM-${index + 1}`
-    const cEAN = getTagText(prodBlock, 'cEAN')
-    const xProd = getTagText(prodBlock, 'xProd') || 'MERCADORIA'
-    const ncm = getTagText(prodBlock, 'NCM') || '00000000'
-    const cfop = getTagText(prodBlock, 'CFOP') || '5102'
-    const uCom = (getTagText(prodBlock, 'uCom') || 'UN').toUpperCase()
-    const qCom = parseFloat(getTagText(prodBlock, 'qCom')) || 0
-    const vUnCom = parseFloat(getTagText(prodBlock, 'vUnCom')) || 0
-    const vProd = parseFloat(getTagText(prodBlock, 'vProd')) || qCom * vUnCom
+      const cProd = getTagText(prodBlock, 'cProd') || `ITEM-${index + 1}`
+      const cEAN = getTagText(prodBlock, 'cEAN')
+      const xProd = getTagText(prodBlock, 'xProd') || 'MERCADORIA'
+      const ncm = getTagText(prodBlock, 'NCM') || '00000000'
+      const cfop = getTagText(prodBlock, 'CFOP') || '5102'
+      const uCom = (getTagText(prodBlock, 'uCom') || 'UN').toUpperCase()
+      const qCom = parseFloat(getTagText(prodBlock, 'qCom')) || 0
+      const vUnCom = parseFloat(getTagText(prodBlock, 'vUnCom')) || 0
+      const vProd = parseFloat(getTagText(prodBlock, 'vProd')) || qCom * vUnCom
 
-    // Tributos destacados no item
-    const vICMS = parseFloat(getTagText(impostoBlock, 'vICMS')) || 0
-    const vPIS = parseFloat(getTagText(impostoBlock, 'vPIS')) || 0
-    const vCOFINS = parseFloat(getTagText(impostoBlock, 'vCOFINS')) || 0
-    const vIBS = parseFloat(getTagText(impostoBlock, 'vIBS')) || 0
-    const vCBS = parseFloat(getTagText(impostoBlock, 'vCBS')) || 0
+      // Tributos destacados no item
+      const vICMS = parseFloat(getTagText(impostoBlock, 'vICMS')) || 0
+      const vPIS = parseFloat(getTagText(impostoBlock, 'vPIS')) || 0
+      const vCOFINS = parseFloat(getTagText(impostoBlock, 'vCOFINS')) || 0
+      const vIBS = parseFloat(getTagText(impostoBlock, 'vIBS')) || 0
+      const vCBS = parseFloat(getTagText(impostoBlock, 'vCBS')) || 0
 
-    return {
-      nItem: index + 1,
-      cProd,
-      cEAN: cEAN && cEAN !== 'SEM GTIN' ? cEAN : undefined,
-      xProd,
-      ncm,
-      cfop,
-      uCom,
-      qCom,
-      vUnCom,
-      vProd,
-      vICMS,
-      vPIS,
-      vCOFINS,
-      vIBS,
-      vCBS,
+      return {
+        nItem: index + 1,
+        cProd,
+        cEAN: cEAN && cEAN !== 'SEM GTIN' ? cEAN : undefined,
+        xProd,
+        ncm,
+        cfop,
+        uCom,
+        qCom,
+        vUnCom,
+        vProd,
+        vICMS,
+        vPIS,
+        vCOFINS,
+        vIBS,
+        vCBS,
+      }
+    } catch {
+      // Item ilegível (XML parcial/corrompido): vira linha placeholder, sem crash.
+      return {
+        nItem: index + 1,
+        cProd: `ITEM-${index + 1}`,
+        xProd: 'ITEM ILEGÍVEL NO XML',
+        ncm: '00000000',
+        cfop: '0000',
+        uCom: 'UN',
+        qCom: 0,
+        vUnCom: 0,
+        vProd: 0,
+      }
     }
   })
 
   // Valor total da NF-e
   const totalBlock = getTagText(cleanXml, 'total')
-  const vNF = parseFloat(getTagText(totalBlock, 'vNF')) || itens.reduce((s, i) => s + i.vProd, 0)
+  const vNF =
+    parseFloat(getTagText(totalBlock, 'vNF')) || itens.reduce((s, i) => s + (i?.vProd || 0), 0)
 
   // Espelho estruturado: protocolo de autorização, eventos, endereços e totais
   // extraídos AGORA — sobrevivem ao descarte do XML bruto por cota.

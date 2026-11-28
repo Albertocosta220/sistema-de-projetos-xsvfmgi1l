@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { SigefProvider } from '@/context/SigefContext'
 import Layout from '@/components/Layout'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import LoginPage from '@/pages/LoginPage'
 import PainelPage from '@/pages/PainelPage'
 import ImportarPage from '@/pages/ImportarPage'
@@ -96,25 +97,46 @@ const ROTAS: { path: string; element: ReactNode }[] = [
   { path: '/perfis', element: <PerfisPage /> },
 ]
 
+const TELA_POR_ROTA_ROTULO: Record<string, string> = Object.fromEntries(
+  Object.entries(TELA_POR_ROTA).map(([rota, tela]) => [rota, tela.label]),
+)
+
 const App = () => (
   <BrowserRouter>
-    <AuthProvider>
-      <SigefProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner position="bottom-right" richColors />
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<Layout />}>
-              {ROTAS.map(({ path, element }) => (
-                <Route key={path} path={path} element={<RotaProtegida>{element}</RotaProtegida>} />
-              ))}
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </TooltipProvider>
-      </SigefProvider>
-    </AuthProvider>
+    <ErrorBoundary rotulo="do sistema">
+      <AuthProvider>
+        <SigefProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner position="bottom-right" richColors />
+            <Routes>
+              <Route
+                path="/login"
+                element={
+                  <ErrorBoundary rotulo="da tela Login">
+                    <LoginPage />
+                  </ErrorBoundary>
+                }
+              />
+              <Route element={<Layout />}>
+                {ROTAS.map(({ path, element }) => (
+                  <Route
+                    key={path}
+                    path={path}
+                    element={
+                      <ErrorBoundary rotulo={`da tela ${TELA_POR_ROTA_ROTULO[path] ?? path}`}>
+                        <RotaProtegida>{element}</RotaProtegida>
+                      </ErrorBoundary>
+                    }
+                  />
+                ))}
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TooltipProvider>
+        </SigefProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </BrowserRouter>
 )
 
