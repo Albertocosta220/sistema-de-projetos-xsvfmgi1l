@@ -52,7 +52,11 @@ interface AuthContextValor {
   atualizarUsuario: (id: string, dados: Partial<Usuario>) => Promise<void>
   alternarAtivoUsuario: (id: string) => Promise<void>
   redefinirSenha: (id: string, novaSenha: string) => Promise<void>
-  trocarPropriaSenha: (id: string, senhaAtual: string, novaSenha: string) => Promise<ResultadoTrocaSenha>
+  trocarPropriaSenha: (
+    id: string,
+    senhaAtual: string,
+    novaSenha: string,
+  ) => Promise<ResultadoTrocaSenha>
   redefinirSenhaAdmin: (login: string, novaSenha: string) => Promise<ResultadoRedefinicaoTipo>
   criarPerfil: (dados: { nome: string; descricao: string; permissoes: string[] }) => Perfil
   atualizarPerfil: (id: string, dados: Partial<Perfil>) => Promise<void>
@@ -195,9 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const alternarAtivoUsuario = async (id: string) => {
     salvarUsuarios(
       carregarUsuarios().map((u) =>
-        u.id === id
-          ? { ...u, ativo: !u.ativo, atualizadoEm: new Date().toISOString() }
-          : u,
+        u.id === id ? { ...u, ativo: !u.ativo, atualizadoEm: new Date().toISOString() } : u,
       ),
     )
     setUsuarios(carregarUsuarios())
@@ -207,17 +209,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const redefinirSenha = async (id: string, novaSenha: string) => {
+    const senhaHash = await hashSenha(novaSenha)
     salvarUsuarios(
       carregarUsuarios().map((u) =>
-        u.id === id
-          ? { ...u, senhaHash: await hashSenha(novaSenha), atualizadoEm: new Date().toISOString() }
-          : u,
+        u.id === id ? { ...u, senhaHash, atualizadoEm: new Date().toISOString() } : u,
       ),
     )
     setUsuarios(carregarUsuarios())
   }
 
-  const trocarPropriaSenha = async (id: string, senhaAtual: string, novaSenha: string): Promise<ResultadoTrocaSenha> => {
+  const trocarPropriaSenha = async (
+    id: string,
+    senhaAtual: string,
+    novaSenha: string,
+  ): Promise<ResultadoTrocaSenha> => {
     const alvo = carregarUsuarios().find((u) => u.id === id)
     if (!alvo || !(await conferirSenha(alvo, senhaAtual))) {
       return { ok: false, motivo: 'SENHA_ATUAL_INVALIDA' }
@@ -229,7 +234,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const redefinirSenhaAdmin = async (login: string, novaSenha: string) =>
     redefinirSenhaAdministrador(login, novaSenha)
 
-  const criarPerfil = (dados: { nome: string; descricao: string; permissoes: string[] }): Perfil => {
+  const criarPerfil = (dados: {
+    nome: string
+    descricao: string
+    permissoes: string[]
+  }): Perfil => {
     const novo: Perfil = {
       id: novoId(),
       nome: dados.nome.trim(),
