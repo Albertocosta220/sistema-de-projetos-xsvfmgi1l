@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Building2 } from 'lucide-react'
+import { novoId } from '@/services/authService'
 
 const UFS = [
   'AC',
@@ -76,7 +77,7 @@ export function OnboardingPrimeiraEmpresa() {
   const salvar = () => {
     if (!valido) return
     const empresa: Empresa = {
-      id: crypto.randomUUID(),
+      id: novoId(),
       razaoSocial: razaoSocial.trim(),
       nomeFantasia: nomeFantasia.trim() || razaoSocial.trim(),
       cnpj: apenasDigitos(cnpj),

@@ -55,13 +55,25 @@ export function limparDadosSeedsOneShot(): void {
     // 1. Empresas semeadas
     const empresasRaw = localStorage.getItem(KEY_EMPRESAS_CADASTRO)
     if (empresasRaw) {
-      const empresas: Empresa[] = JSON.parse(empresasRaw)
-      const restantes = empresas.filter((e) => !IDS_SEED_EMPRESAS.includes(e.id))
-      if (restantes.length !== empresas.length) {
-        if (restantes.length > 0) {
-          localStorage.setItem(KEY_EMPRESAS_CADASTRO, JSON.stringify(restantes))
-        } else {
-          localStorage.removeItem(KEY_EMPRESAS_CADASTRO)
+      // Tolerante a JSON inválido ou não-array: isto roda no escopo do módulo
+      // (importação), ANTES do primeiro paint — um throw aqui derrubava o app
+      // inteiro, inclusive a rota /login, para o ErrorBoundary.
+      let empresas: unknown
+      try {
+        empresas = JSON.parse(empresasRaw)
+      } catch {
+        empresas = null
+      }
+      if (Array.isArray(empresas)) {
+        const restantes = (empresas as Empresa[]).filter(
+          (e) => e && !IDS_SEED_EMPRESAS.includes(e.id),
+        )
+        if (restantes.length !== empresas.length) {
+          if (restantes.length > 0) {
+            localStorage.setItem(KEY_EMPRESAS_CADASTRO, JSON.stringify(restantes))
+          } else {
+            localStorage.removeItem(KEY_EMPRESAS_CADASTRO)
+          }
         }
       }
     }
@@ -101,7 +113,7 @@ export function limparDadosSeedsOneShot(): void {
     // 5. Regras CFOP semeadas de exemplo: eram persistidas como DeParaVigente com
     //    cProd 'CFOP-XXXX' e cnpjFornecedor 00000000000000 (formato legado) OU como
     //    entidades com ids do de-para de exemplo. Regras criadas pelo usuário
-    //    (ids gerados via crypto.randomUUID) nunca são removidas.
+    //    (ids gerados via gerarId) nunca são removidas.
     const regrasRaw = localStorage.getItem('sigef-regras-cfop')
     if (regrasRaw) {
       try {

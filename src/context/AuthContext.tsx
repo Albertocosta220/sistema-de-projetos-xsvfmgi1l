@@ -18,6 +18,7 @@ import {
   salvarPerfis,
   salvarSessao,
   salvarUsuarios,
+  novoId,
 } from '@/services/authService'
 import { toast } from 'sonner'
 
@@ -193,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const agora = new Date().toISOString()
       const novo: Usuario = {
-        id: crypto.randomUUID(),
+        id: novoId(),
         nome: dados.nome.trim(),
         login,
         senhaHash: await hashSenha(dados.senha),
@@ -292,7 +293,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!nomeLimpo) return null
       if (perfis.some((p) => p.nome.toLowerCase() === nomeLimpo.toLowerCase())) return null
       const novo: Perfil = {
-        id: `perfil-${crypto.randomUUID()}`,
+        id: `perfil-${novoId()}`,
         nome: nomeLimpo,
         descricao: descricao.trim(),
         permissoes: [],
@@ -351,7 +352,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return
       }
       const novo: Perfil = {
-        id: `perfil-${crypto.randomUUID()}`,
+        id: `perfil-${novoId()}`,
         nome: dados.nome.trim(),
         descricao: dados.descricao.trim(),
         permissoes: permissoesConhecidas(dados.permissoes),

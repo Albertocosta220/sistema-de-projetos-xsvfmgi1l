@@ -4,6 +4,22 @@ const KEY_USUARIOS = 'sigef-usuarios'
 const KEY_PERFIS = 'sigef-perfis'
 export const KEY_SESSAO = 'sigef-sessao'
 
+/**
+ * Id único à prova de contexto: crypto.randomUUID() NÃO existe em contextos
+ * não seguros (http fora de localhost — ex.: preview/IP da rede), e chamá-lo
+ * derruba a tela de login inteira no ErrorBoundary. Fallback local seguro.
+ */
+export function novoId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+  } catch {
+    // segue para o fallback
+  }
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10)
+}
+
 const SHA256_K = [
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
   0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -201,7 +217,7 @@ export async function cadastrarAdministrador(dados: NovoUsuarioAdmin): Promise<U
   const senhaHash = await hashSenha(dados.senha)
   const agora = new Date().toISOString()
   const usuario: Usuario = {
-    id: crypto.randomUUID(),
+    id: novoId(),
     nome: dados.nome.trim(),
     login: dados.login.trim().toLowerCase(),
     senhaHash,
