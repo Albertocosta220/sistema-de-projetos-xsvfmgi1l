@@ -40,6 +40,12 @@ export const TELAS: {
   { key: 'tela-importar', rota: '/importar', label: 'Importar', grupo: 'Operacional' },
   { key: 'tela-kardex', rota: '/kardex', label: 'Kardex', grupo: 'Operacional' },
   { key: 'tela-inventario', rota: '/inventario', label: 'Inventário', grupo: 'Operacional' },
+  {
+    key: 'tela-inventario-negativo',
+    rota: '/inventario-negativo',
+    label: 'Inventário Negativo',
+    grupo: 'Operacional',
+  },
   { key: 'tela-bloco-k', rota: '/bloco-k', label: 'Bloco K', grupo: 'Operacional' },
   { key: 'tela-sped', rota: '/sped', label: 'SPED TXT', grupo: 'Operacional' },
   { key: 'tela-produtos', rota: '/produtos', label: 'Produtos (De-Para)', grupo: 'Operacional' },

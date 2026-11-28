@@ -11,6 +11,7 @@ import ImportarPage from '@/pages/ImportarPage'
 import ProdutosPage from '@/pages/ProdutosPage'
 import KardexPage from '@/pages/KardexPage'
 import InventarioPage from '@/pages/InventarioPage'
+import InventarioNegativoPage from '@/pages/InventarioNegativoPage'
 import BlocoKPage from '@/pages/BlocoKPage'
 import SpedPage from '@/pages/SpedPage'
 import AuditoriaPage from '@/pages/AuditoriaPage'
@@ -76,6 +77,7 @@ const ROTAS: { path: string; element: ReactNode }[] = [
   { path: '/importar', element: <ImportarPage /> },
   { path: '/kardex', element: <KardexPage /> },
   { path: '/inventario', element: <InventarioPage /> },
+  { path: '/inventario-negativo', element: <InventarioNegativoPage /> },
   { path: '/bloco-k', element: <BlocoKPage /> },
   { path: '/sped', element: <SpedPage /> },
   { path: '/produtos', element: <ProdutosPage /> },
