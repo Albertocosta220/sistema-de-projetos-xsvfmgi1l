@@ -1,451 +1,306 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Perfil, Sessao, Usuario } from '@/types/usuario'
-import type { ResultadoLogin } from '@/services/authService'
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react'
 import {
-  KEY_SESSAO,
-  carregarPerfis,
-  carregarSessao,
-  carregarUsuarios,
-  cadastrarAdministrador,
-  garantirPerfisPadrao,
-  entrar as entrarService,
-  existeAdministrador,
   hashSenha,
-  redefinirSenhaAdministrador as redefinirSenhaAdministradorService,
-  limparSessao,
-  permissoesConhecidas,
-  salvarPerfis,
-  salvarSessao,
-  salvarUsuarios,
   novoId,
+  garantirPerfisPadrao,
+  carregarUsuarios,
+  salvarUsuarios,
+  carregarPerfis,
+  salvarPerfis,
+  entrar,
+  conferirSenha,
+  redefinirSenhaAdministrador,
+  carregarSessao,
+  salvarSessao,
+  limparSessao,
+  existeAdministrador,
+  cadastrarAdministrador,
 } from '@/services/authService'
-import { toast } from 'sonner'
+import type { Sessao, Usuario, Perfil } from '@/types/usuario'
+import { TODAS_PERMISSOES } from '@/types/usuario'
 
 export interface NovoUsuario {
   nome: string
   login: string
   senha: string
   perfilId: string
-  ativo: boolean
+  ativo?: boolean
 }
 
 /**
- * Auto-recuperação de acesso: recadastra a senha do usuário administrador
- * (apaga o hash antigo e grava o novo), reativando-o. Usada na tela de login
- * quando a senha é recusada — o dono do sistema nunca fica preso fora.
+ * Estado de autenticação do SIGEF-ME.
+ *
+ * Boot blindado (v0.0.47+): toda a inicialização roda em try/catch/finally —
+ * localStorage corrompido, usuários/perfis null ou perfis quebrados NUNCA
+ * derrubam a aplicação nem deixam /login travado; `pronto` é sempre setado.
+ * A sessão vive no sessionStorage (recarregar mantém login; fechar o navegador
+ * pede login de novo). Persistência real: authService grava usuários/perfis no
+ * PocketBase via bancoService (espelho local para uso offline).
  */
-interface AuthContextType {
-  // Estado
-  pronto: boolean // terminou de carregar usuários/perfis/sessão
-  precisaOnboarding: boolean // nenhum usuário cadastrado ainda
-  usuarioAtual: Usuario | null
+
+interface AuthContextValor {
+  pronto: boolean
   sessao: Sessao | null
   usuarios: Usuario[]
   perfis: Perfil[]
-
-  // Autenticação
-  entrar: (login: string, senha: string) => Promise<{ ok: boolean; motivo?: string }>
+  existeAdmin: boolean
+  entrar: (login: string, senha: string) => Promise<ResultadoLoginTipo>
   sair: () => void
-  criarAdministrador: (dados: { nome: string; login: string; senha: string }) => Promise<void>
-  /** Auto-recuperação: recadastra a senha do admin existente (tela de login). */
-  redefinirSenhaAdmin: (
-    login: string,
-    novaSenha: string,
-  ) => Promise<{ ok: boolean; motivo?: string }>
-
-  // Usuários (ação acao-gerenciar-usuarios)
-  criarUsuario: (dados: NovoUsuario) => Promise<{ ok: boolean; motivo?: string }>
-  editarUsuario: (
-    id: string,
-    dados: { nome: string; login: string; perfilId: string },
-  ) => { ok: boolean; motivo?: string }
-  alternarAtivoUsuario: (id: string) => { ok: boolean; motivo?: string }
-  redefinirSenha: (id: string, novaSenha: string) => Promise<{ ok: boolean; motivo?: string }>
-
-  // Perfis (ação acao-gerenciar-perfis)
-  criarPerfil: (nome: string, descricao: string) => Perfil | null
-  editarPerfil: (
-    id: string,
-    dados: { nome: string; descricao: string; permissoes: string[] },
-  ) => void
-  salvarPerfil: (dados: {
-    id: string
-    nome: string
-    descricao: string
-    permissoes: string[]
-  }) => void
-  excluirPerfil: (id: string) => { ok: boolean; motivo?: string }
-
-  // Permissões
-  temPermissao: (chave: string) => boolean
+  cadastrarAdministrador: (dados: NovoUsuarioAdminTipo) => Promise<Usuario>
+  existeAdministrador: () => boolean
+  criarUsuario: (dados: NovoUsuario) => Promise<Usuario>
+  atualizarUsuario: (id: string, dados: Partial<Usuario>) => Promise<void>
+  alternarAtivoUsuario: (id: string) => Promise<void>
+  redefinirSenha: (id: string, novaSenha: string) => Promise<void>
+  trocarPropriaSenha: (id: string, senhaAtual: string, novaSenha: string) => Promise<ResultadoTrocaSenha>
+  redefinirSenhaAdmin: (login: string, novaSenha: string) => Promise<ResultadoRedefinicaoTipo>
+  criarPerfil: (dados: { nome: string; descricao: string; permissoes: string[] }) => Perfil
+  atualizarPerfil: (id: string, dados: Partial<Perfil>) => Promise<void>
+  excluirPerfil: (id: string) => Promise<void>
+  temPermissao: (codigo: string) => boolean
 }
 
-const AuthContext = createContext<AuthContextType | null>(null)
+import type { ResultadoLogin, ResultadoRedefinicaoAdmin } from '@/services/authService'
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const navigate = useNavigate()
+type ResultadoLoginTipo = ResultadoLogin
+type ResultadoRedefinicaoTipo = ResultadoRedefinicaoAdmin
+type ResultadoTrocaSenha = { ok: true } | { ok: false; motivo: 'SENHA_ATUAL_INVALIDA' }
+type NovoUsuarioAdminTipo = { nome: string; login: string; senha: string }
+
+const AuthContext = createContext<AuthContextValor | undefined>(undefined)
+
+function montarSessao(usuario: Usuario): Sessao {
+  return {
+    usuarioId: usuario.id,
+    login: usuario.login,
+    nome: usuario.nome,
+    perfilId: usuario.perfilId,
+    iniciadaEm: new Date().toISOString(),
+  }
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [pronto, setPronto] = useState(false)
-  const [usuarioAtual, setUsuarioAtual] = useState<Usuario | null>(null)
   const [sessao, setSessao] = useState<Sessao | null>(null)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [perfis, setPerfis] = useState<Perfil[]>([])
+  const [existeAdmin, setExisteAdmin] = useState(false)
 
-  const iniciarSessao = useCallback((usuario: Usuario) => {
-    const nova: Sessao = {
-      usuarioId: usuario.id,
-      nome: usuario.nome,
-      login: usuario.login,
-      perfilId: usuario.perfilId,
-      iniciadaEm: new Date().toISOString(),
-    }
-    salvarSessao(nova)
-    setSessao(nova)
-  }, [])
-
-  // Boot: garante perfis padrão (estrutura, não dados de exemplo) e restaura a sessão.
-  // O boot roda dentro de try/catch: um dado corrompido no localStorage
-  // (usuário/perfil null, JSON quebrado) nunca pode derrubar o provider — que
-  // envolve também a rota /login — nem deixar o app preso em !pronto (tela branca).
   useEffect(() => {
-    try {
-      garantirPerfisPadrao()
-      const lista = carregarUsuarios().filter((u) => u && typeof u === 'object')
-      setUsuarios(lista)
-      setPerfis(carregarPerfis().filter((p) => p && typeof p === 'object'))
-
-      const sessaoSalva = carregarSessao()
-      if (sessaoSalva) {
-        const usuario = lista.find((u) => u.id === sessaoSalva.usuarioId && u.ativo)
-        if (usuario) {
-          setUsuarioAtual(usuario)
-          setSessao(sessaoSalva)
-        } else {
+    let ativo = true
+    const carregar = async () => {
+      try {
+        const perfisGarantidos = garantirPerfisPadrao()
+        const listaUsuarios = carregarUsuarios().filter(
+          (u): u is Usuario => !!u && typeof u === 'object' && !!u.id,
+        )
+        if (!ativo) return
+        setPerfis(perfisGarantidos)
+        setUsuarios(listaUsuarios)
+        setExisteAdmin(existeAdministrador())
+        const atual = carregarSessao()
+        if (atual && listaUsuarios.some((u) => u.id === atual.usuarioId && u.ativo)) {
+          setSessao(atual)
+        } else if (atual) {
           limparSessao()
         }
+      } catch (e) {
+        // Dado corrompido NUNCA derruba o boot: estado limpo e /login normal.
+        console.error('[SIGEF] falha no boot de autenticação; estado limpo:', e)
+        if (ativo) {
+          try {
+            limparSessao()
+            const padroes = garantirPerfisPadrao()
+            setPerfis(padroes)
+            setUsuarios([])
+          } catch {
+            // nem os padrões: segue com listas vazias
+          }
+          setSessao(null)
+        }
+      } finally {
+        if (ativo) setPronto(true)
       }
-    } catch (e) {
-      console.error('[SIGEF] boot de autenticação ignorou erro:', e)
-      limparSessao()
-    } finally {
-      setPronto(true)
+    }
+    void carregar()
+    return () => {
+      ativo = false
     }
   }, [])
 
-  const precisaOnboarding = !existeAdministrador()
+  const sessaoAtual = useMemo(() => sessao, [sessao])
 
-  const entrar = useCallback(
-    async (login: string, senha: string) => {
-      const res = await entrarService(login, senha)
-      if (res.ok === false) {
-        return { ok: false, motivo: res.motivo }
-      }
-      const usuario = res.usuario
-      setUsuarioAtual(usuario)
+  const efetuarLogin = async (login: string, senha: string) => {
+    let resultado: ResultadoLoginTipo
+    try {
+      resultado = await entrar(login, senha)
+    } catch (e) {
+      // Rede/parse quebrado nunca derruba /login: volta como credencial inválida.
+      console.error('[SIGEF] falha no entrar():', e)
+      resultado = { ok: false, motivo: 'USUARIO_SENHA_INVALIDOS' }
+    }
+    if (resultado.ok) {
+      const nova = montarSessao(resultado.usuario)
+      salvarSessao(nova)
+      setSessao(nova)
       setUsuarios(carregarUsuarios())
-      // Reflui os perfis do localStorage (podem ter mudado em outra aba/boot)
-      setPerfis(carregarPerfis())
-      iniciarSessao(usuario)
-      return { ok: true }
-    },
-    [iniciarSessao],
-  )
+    }
+    return resultado
+  }
 
-  // Auto-recuperação de acesso: recadastra a senha do administrador existente
-  // (apaga o hash antigo, grava o novo e reativa) e já inicia a sessão.
-  const redefinirSenhaAdmin = useCallback(
-    async (login: string, novaSenha: string) => {
-      const res = await redefinirSenhaAdministradorService(login, novaSenha)
-      if (res.ok === false) return { ok: false, motivo: res.motivo }
-      const usuario = carregarUsuarios().find((u) => u.login === res.login)
-      if (usuario) {
-        setUsuarioAtual(usuario)
-        setUsuarios(carregarUsuarios())
-        iniciarSessao(usuario)
-      }
-      return { ok: true }
-    },
-    [iniciarSessao],
-  )
-
-  // Encerra a sessão e leva o usuário à tela de login. O navigate garante a
-  // troca de tela imediata (o redirect passivo das rotas protegidas só
-  // aconteceria na próxima renderização de cada rota).
-  const sair = useCallback(() => {
+  const sair = () => {
     limparSessao()
-    setUsuarioAtual(null)
     setSessao(null)
-    navigate('/login', { replace: true })
-  }, [navigate])
+  }
 
-  const criarAdministrador = useCallback(
-    async (dados: { nome: string; login: string; senha: string }) => {
-      garantirPerfisPadrao()
-      await cadastrarAdministrador(dados)
-      setPerfis(carregarPerfis())
-      const usuario = carregarUsuarios().find((u) => u.login === dados.login.trim().toLowerCase())
-      if (usuario) {
-        setUsuarioAtual(usuario)
-        setUsuarios(carregarUsuarios())
-        iniciarSessao(usuario)
-      }
-    },
-    [iniciarSessao],
-  )
+  const cadastrarPrimeiroAdmin = async (dados: NovoUsuarioAdminTipo) => {
+    const usuario = await cadastrarAdministrador(dados)
+    setUsuarios(carregarUsuarios())
+    setExisteAdmin(true)
+    const nova = montarSessao(usuario)
+    salvarSessao(nova)
+    setSessao(nova)
+    return usuario
+  }
 
-  // ============ Usuários ============
+  const criarUsuario = async (dados: NovoUsuario): Promise<Usuario> => {
+    const agora = new Date().toISOString()
+    const novo: Usuario = {
+      id: novoId(),
+      nome: dados.nome.trim(),
+      login: dados.login.trim().toLowerCase(),
+      senhaHash: await hashSenha(dados.senha),
+      perfilId: dados.perfilId,
+      ativo: dados.ativo ?? true,
+      criadoEm: agora,
+      atualizadoEm: agora,
+    }
+    salvarUsuarios([...carregarUsuarios(), novo])
+    setUsuarios(carregarUsuarios())
+    return novo
+  }
 
-  const criarUsuario = useCallback(
-    async (dados: NovoUsuario) => {
-      const login = dados.login.trim().toLowerCase()
-      if (usuarios.some((u) => u.login === login)) {
-        return { ok: false, motivo: 'LOGIN_DUPLICADO' }
-      }
-      const agora = new Date().toISOString()
-      const novo: Usuario = {
-        id: novoId(),
-        nome: dados.nome.trim(),
-        login,
-        senhaHash: await hashSenha(dados.senha),
-        perfilId: dados.perfilId,
-        ativo: dados.ativo,
-        criadoEm: agora,
-        atualizadoEm: agora,
-      }
-      const novos = [...usuarios, novo]
-      salvarUsuarios(novos)
-      setUsuarios(novos)
-      return { ok: true }
-    },
-    [usuarios],
-  )
+  const atualizarUsuario = async (id: string, dados: Partial<Usuario>) => {
+    salvarUsuarios(
+      carregarUsuarios().map((u) =>
+        u.id === id ? { ...u, ...dados, atualizadoEm: new Date().toISOString() } : u,
+      ),
+    )
+    setUsuarios(carregarUsuarios())
+    if (sessaoAtual?.usuarioId === id && dados.perfilId) {
+      setSessao({ ...sessaoAtual, perfilId: dados.perfilId })
+    }
+  }
 
-  const editarUsuario = useCallback(
-    (id: string, dados: { nome: string; login: string; perfilId: string }) => {
-      const login = dados.login.trim().toLowerCase()
-      if (usuarios.some((u) => u.login === login && u.id !== id)) {
-        return { ok: false, motivo: 'LOGIN_DUPLICADO' }
-      }
-      const alvo = usuarios.find((u) => u.id === id)
-      if (alvo?.perfilId === 'perfil-administrador' && dados.perfilId !== 'perfil-administrador') {
-        // Impede o único admin de perder o acesso administrativo
-        const outrosAdmins = usuarios.filter(
-          (u) => u.perfilId === 'perfil-administrador' && u.id !== id && u.ativo,
-        )
-        if (outrosAdmins.length === 0) {
-          return { ok: false, motivo: 'ULTIMO_ADMIN' }
-        }
-      }
-      const novos = usuarios.map((u) =>
+  const alternarAtivoUsuario = async (id: string) => {
+    salvarUsuarios(
+      carregarUsuarios().map((u) =>
         u.id === id
-          ? {
-              ...u,
-              nome: dados.nome.trim(),
-              login,
-              perfilId: dados.perfilId,
-              atualizadoEm: new Date().toISOString(),
-            }
+          ? { ...u, ativo: !u.ativo, atualizadoEm: new Date().toISOString() }
           : u,
-      )
-      salvarUsuarios(novos)
-      setUsuarios(novos)
-      if (usuarioAtual?.id === id) {
-        setUsuarioAtual(novos.find((u) => u.id === id) ?? null)
-      }
-      return { ok: true }
-    },
-    [usuarios, usuarioAtual],
-  )
+      ),
+    )
+    setUsuarios(carregarUsuarios())
+    if (sessaoAtual?.usuarioId === id && !carregarUsuarios().find((u) => u.id === id)?.ativo) {
+      sair()
+    }
+  }
 
-  const alternarAtivoUsuario = useCallback(
-    (id: string) => {
-      const alvo = usuarios.find((u) => u.id === id)
-      if (!alvo) return { ok: false, motivo: 'NAO_ENCONTRADO' }
-      if (alvo.ativo && alvo.perfilId === 'perfil-administrador') {
-        const outrosAdminsAtivos = usuarios.filter(
-          (u) => u.perfilId === 'perfil-administrador' && u.id !== id && u.ativo,
-        )
-        if (outrosAdminsAtivos.length === 0) {
-          return { ok: false, motivo: 'ULTIMO_ADMIN' }
-        }
-      }
-      const novos = usuarios.map((u) =>
-        u.id === id ? { ...u, ativo: !u.ativo, atualizadoEm: new Date().toISOString() } : u,
-      )
-      salvarUsuarios(novos)
-      setUsuarios(novos)
-      return { ok: true }
-    },
-    [usuarios],
-  )
+  const redefinirSenha = async (id: string, novaSenha: string) => {
+    salvarUsuarios(
+      carregarUsuarios().map((u) =>
+        u.id === id
+          ? { ...u, senhaHash: await hashSenha(novaSenha), atualizadoEm: new Date().toISOString() }
+          : u,
+      ),
+    )
+    setUsuarios(carregarUsuarios())
+  }
 
-  const redefinirSenha = useCallback(
-    async (id: string, novaSenha: string) => {
-      const alvo = usuarios.find((u) => u.id === id)
-      if (!alvo) return { ok: false, motivo: 'NAO_ENCONTRADO' }
-      const senhaHash = await hashSenha(novaSenha)
-      const novos = usuarios.map((u) =>
-        u.id === id ? { ...u, senhaHash, atualizadoEm: new Date().toISOString() } : u,
-      )
-      salvarUsuarios(novos)
-      setUsuarios(novos)
-      return { ok: true }
-    },
-    [usuarios],
-  )
+  const trocarPropriaSenha = async (id: string, senhaAtual: string, novaSenha: string): Promise<ResultadoTrocaSenha> => {
+    const alvo = carregarUsuarios().find((u) => u.id === id)
+    if (!alvo || !(await conferirSenha(alvo, senhaAtual))) {
+      return { ok: false, motivo: 'SENHA_ATUAL_INVALIDA' }
+    }
+    await redefinirSenha(id, novaSenha)
+    return { ok: true }
+  }
 
-  // ============ Perfis ============
+  const redefinirSenhaAdmin = async (login: string, novaSenha: string) =>
+    redefinirSenhaAdministrador(login, novaSenha)
 
-  const criarPerfil = useCallback(
-    (nome: string, descricao: string): Perfil | null => {
-      const nomeLimpo = nome.trim()
-      if (!nomeLimpo) return null
-      if (perfis.some((p) => p.nome.toLowerCase() === nomeLimpo.toLowerCase())) return null
-      const novo: Perfil = {
-        id: `perfil-${novoId()}`,
-        nome: nomeLimpo,
-        descricao: descricao.trim(),
-        permissoes: [],
-        sistema: false,
-        atualizadoEm: new Date().toISOString(),
-      }
-      const novos = [...perfis, novo]
-      salvarPerfis(novos)
-      setPerfis(novos)
-      return novo
-    },
-    [perfis],
-  )
+  const criarPerfil = (dados: { nome: string; descricao: string; permissoes: string[] }): Perfil => {
+    const novo: Perfil = {
+      id: novoId(),
+      nome: dados.nome.trim(),
+      descricao: dados.descricao.trim(),
+      permissoes: dados.permissoes,
+      sistema: false,
+      criadoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+    }
+    salvarPerfis([...carregarPerfis(), novo])
+    setPerfis(carregarPerfis())
+    return novo
+  }
 
-  const editarPerfil = useCallback(
-    (id: string, dados: { nome: string; descricao: string; permissoes: string[] }) => {
-      const novos = perfis.map((p) =>
+  const atualizarPerfil = async (id: string, dados: Partial<Perfil>) => {
+    if (id === 'perfil-administrador') return // acesso total inalienável
+    salvarPerfis(
+      carregarPerfis().map((p) =>
         p.id === id
           ? {
               ...p,
-              nome: dados.nome.trim(),
-              descricao: dados.descricao.trim(),
-              permissoes: dados.permissoes,
+              ...dados,
+              ...(dados.permissoes !== undefined ? { permissoes: dados.permissoes } : {}),
               atualizadoEm: new Date().toISOString(),
             }
           : p,
-      )
-      salvarPerfis(novos)
-      setPerfis(novos)
-      toast.success(`Perfil "${dados.nome.trim()}" atualizado.`)
-    },
-    [perfis],
-  )
+      ),
+    )
+    setPerfis(carregarPerfis())
+  }
 
-  const excluirPerfil = useCallback(
-    (id: string) => {
-      const alvo = perfis.find((p) => p.id === id)
-      if (!alvo) return { ok: false, motivo: 'NAO_ENCONTRADO' }
-      if (alvo.sistema) return { ok: false, motivo: 'PERFIL_SISTEMA' }
-      if (usuarios.some((u) => u.perfilId === id)) {
-        return { ok: false, motivo: 'PERFIL_EM_USO' }
-      }
-      const novos = perfis.filter((p) => p.id !== id)
-      salvarPerfis(novos)
-      setPerfis(novos)
-      return { ok: true }
-    },
-    [perfis, usuarios],
-  )
+  const excluirPerfil = async (id: string) => {
+    if (id === 'perfil-administrador') return // inalienável
+    salvarPerfis(carregarPerfis().filter((p) => p.id !== id))
+    setPerfis(carregarPerfis())
+  }
 
-  /** Salva (cria ou atualiza) um perfil — usado pela tela de Perfis. */
-  const salvarPerfil = useCallback(
-    (dados: { id: string; nome: string; descricao: string; permissoes: string[] }) => {
-      if (dados.id) {
-        editarPerfil(dados.id, dados)
-        return
-      }
-      const novo: Perfil = {
-        id: `perfil-${novoId()}`,
-        nome: dados.nome.trim(),
-        descricao: dados.descricao.trim(),
-        permissoes: permissoesConhecidas(dados.permissoes),
-        sistema: false,
-        atualizadoEm: new Date().toISOString(),
-      }
-      const novos = [...perfis, novo]
-      salvarPerfis(novos)
-      setPerfis(novos)
-    },
-    [perfis, editarPerfil],
-  )
+  const temPermissao = (codigo: string): boolean => {
+    if (!sessaoAtual) return false
+    if (sessaoAtual.perfilId === 'perfil-administrador') return true
+    const perfil = perfis.find((p) => p?.id === sessaoAtual.perfilId)
+    return Array.isArray(perfil?.permissoes) && perfil.permissoes.includes(codigo)
+  }
 
-  // ============ Permissões ============
+  const valor: AuthContextValor = {
+    pronto,
+    sessao: sessaoAtual,
+    usuarios,
+    perfis,
+    existeAdmin,
+    entrar: efetuarLogin,
+    sair,
+    cadastrarAdministrador: cadastrarPrimeiroAdmin,
+    existeAdministrador: () => existeAdmin,
+    criarUsuario,
+    atualizarUsuario,
+    alternarAtivoUsuario,
+    redefinirSenha,
+    trocarPropriaSenha,
+    redefinirSenhaAdmin,
+    criarPerfil,
+    atualizarPerfil,
+    excluirPerfil,
+    temPermissao,
+  }
 
-  const temPermissao = useCallback(
-    (chave: string) => {
-      if (!usuarioAtual) return false
-      // 'painel' é a home: sempre visível para quem está logado
-      if (chave === 'tela-painel') return true
-      // O Administrador (perfil do onboarding) tem acesso total INALIENÁVEL,
-      // garantido por código — nem uma matriz corrompida bloqueia o admin.
-      if (usuarioAtual.perfilId === 'perfil-administrador') return true
-      const doPerfil = perfis.find((p) => p?.id === usuarioAtual.perfilId)?.permissoes ?? []
-      return Array.isArray(doPerfil) && doPerfil.includes(chave)
-    },
-    [usuarioAtual, perfis],
-  )
-
-  const value = useMemo<AuthContextType>(
-    () => ({
-      pronto,
-      precisaOnboarding,
-      usuarioAtual,
-      sessao,
-      usuarios,
-      perfis,
-      entrar,
-      sair,
-      criarAdministrador,
-      redefinirSenhaAdmin,
-      criarUsuario,
-      editarUsuario,
-      alternarAtivoUsuario,
-      redefinirSenha,
-      criarPerfil,
-      editarPerfil,
-      salvarPerfil,
-      excluirPerfil,
-      temPermissao,
-    }),
-    [
-      pronto,
-      precisaOnboarding,
-      usuarioAtual,
-      sessao,
-      usuarios,
-      perfis,
-      entrar,
-      sair,
-      criarAdministrador,
-      redefinirSenhaAdmin,
-      criarUsuario,
-      editarUsuario,
-      alternarAtivoUsuario,
-      redefinirSenha,
-      criarPerfil,
-      editarPerfil,
-      salvarPerfil,
-      excluirPerfil,
-      temPermissao,
-    ],
-  )
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>
 }
 
-export function useAuth(): AuthContextType {
+export function useAuth(): AuthContextValor {
   const ctx = useContext(AuthContext)
-  if (!ctx) {
-    throw new Error('useAuth deve ser utilizado dentro de AuthProvider')
-  }
+  if (!ctx) throw new Error('useAuth deve ser usado dentro de AuthProvider')
   return ctx
 }
-
-// Reexporta para quem só precisa da chave da sessão
-export { KEY_SESSAO }
