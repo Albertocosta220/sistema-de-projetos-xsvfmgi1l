@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/dialog'
 import { ItemContagemInventario } from '@/types/sigef'
 import { SeletorCompetencia } from '@/components/SeletorCompetencia'
-import { brl, num } from '@/components/shell'
+import { brl, num, num as fmtQtd } from '@/components/shell'
 import { TabelaWrap, Th, Td, TdNum, TrTotais, TdTotal } from '@/components/tabelaPadrao'
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
@@ -452,12 +452,12 @@ export default function InventarioPage() {
               <tfoot>
                 <TrTotais titulo={`Totais da contagem (${itensContagem.length} itens)`} colSpan={3}>
                   <TdTotal valor={totalQtdSistema} fmt={fmtQtd} />
-                  <td />
+                  <td aria-hidden="true" />
                   <TdTotal valor={totalValorSistema} fmt={brl} />
-                  <td />
+                  <td aria-hidden="true" />
                   <TdTotal valor={totalDivergQtd} fmt={fmtQtd} />
                   <TdTotal valor={totalDiferencaValor} fmt={brl} />
-                  <td />
+                  <td aria-hidden="true" />
                 </TrTotais>
               </tfoot>
             </table>

@@ -43,6 +43,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TrTotais } from '@/components/tabelaPadrao'
 import { toast } from 'sonner'
 import { Produto } from '@/types/sigef'
 import { CNPJ_REGRA_CFOP_LEGADO } from '@/services/regrasCfopService'
@@ -494,6 +495,14 @@ export default function ProdutosPage() {
                         </TableRow>
                       ))}
                     </TableBody>
+                    <tfoot>
+                      <TrTotais
+                        titulo={`Total (${pendenciasDePara.length} itens pendentes)`}
+                        colSpan={5}
+                      >
+                        <td className="px-3" aria-hidden="true" />
+                      </TrTotais>
+                    </tfoot>
                   </Table>
                 </div>
               )}
@@ -641,6 +650,11 @@ export default function ProdutosPage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  <tfoot>
+                    <TrTotais titulo={`Total (${produtos.length} produtos)`} colSpan={7}>
+                      <td className="px-3" aria-hidden="true" />
+                    </TrTotais>
+                  </tfoot>
                 </Table>
               </div>
             </CardContent>
@@ -715,6 +729,11 @@ export default function ProdutosPage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  <tfoot>
+                    <TrTotais titulo={`Total (${deParaList.length} relações)`} colSpan={6}>
+                      <td className="px-3" aria-hidden="true" />
+                    </TrTotais>
+                  </tfoot>
                 </Table>
               </div>
             </CardContent>

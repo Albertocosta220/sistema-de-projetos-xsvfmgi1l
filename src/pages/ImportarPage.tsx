@@ -59,6 +59,7 @@ import { EspelhoNFeDialogBody } from '@/components/EspelhoNFe'
 import { DialogoDesqualificarNota } from '@/components/DialogoDesqualificarNota'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { MARCADOR_XML_COMPACTADO } from '@/services/storageService'
+import { TrTotais, TdTotal } from '@/components/tabelaPadrao'
 
 export default function ImportarPage() {
   const {
@@ -731,6 +732,22 @@ export default function ImportarPage() {
                     )
                   })}
                 </TableBody>
+                <TrTotais
+                  titulo={`Totais da fila (${docsFiltrados.length} documentos)`}
+                  colSpan={4}
+                >
+                  <TdTotal
+                    valor={docsFiltrados.reduce((s, d) => s + (d.valorTotal || 0), 0)}
+                    fmt={(v) =>
+                      new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(v)
+                    }
+                  />
+                  <td className="px-1.5" aria-hidden="true" />
+                  <td className="px-1.5" aria-hidden="true" />
+                </TrTotais>
               </Table>
             </div>
           )}
@@ -783,7 +800,7 @@ export default function ImportarPage() {
                         <TableHead>De-Para Vinculado</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <TableBody className="text-[11px]">
                       {(docSelecionado.itens || []).map((it) => (
                         <TableRow key={it.nItem}>
                           <TableCell className="font-bold">{it.nItem}</TableCell>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSigef } from '@/context/SigefContext'
 import { PageHead, CardS, Pill, brl } from '@/components/shell'
+import { TrTotais, TdTotal } from '@/components/tabelaPadrao'
 import { SeletorCompetencia } from '@/components/SeletorCompetencia'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -347,6 +348,24 @@ export default function FornecedoresPage() {
                 ))
               )}
             </TableBody>
+            <TrTotais
+              titulo={`Totais (${fornecedoresFiltrados.length} fornecedores — sem canceladas)`}
+              colSpan={2}
+            >
+              <TdTotal
+                valor={fornecedoresFiltrados.reduce((s, f) => s + f.totalNotas, 0)}
+                fmt={(v) => String(v)}
+                className="pr-6"
+              />
+              <TdTotal
+                valor={fornecedoresFiltrados.reduce((s, f) => s + f.valorTotal, 0)}
+                fmt={brl}
+                className="pr-6"
+              />
+              <td className="px-3" aria-hidden="true" />
+              <td className="px-3" aria-hidden="true" />
+              <td className="px-3" aria-hidden="true" />
+            </TrTotais>
           </Table>
         </div>
       </CardS>

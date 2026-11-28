@@ -174,7 +174,9 @@ function GrupoTabela({ titulo, sub, grupo, tipo, expandidos, onAlternar }: Grupo
                 <TdTotal valor={sumSaidasQtd(grupo)} fmt={(v) => num(v)} />
                 <TdTotal valor={sumSaidasValor(grupo)} fmt={brl} />
                 <TdTotal valor={totalQtd} fmt={(v) => num(v)} className={corSaldo} />
-                <td />
+                <td className="py-1.5 pr-3 text-right font-mono text-xs text-[var(--sig-muted)]">
+                  —
+                </td>
                 <TdTotal valor={totalValor} fmt={brl} className={corSaldo} />
               </tr>
             </tfoot>

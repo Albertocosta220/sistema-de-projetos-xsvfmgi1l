@@ -114,6 +114,12 @@ export default function SpedPage() {
   const totalQtdH010 = itensH010.reduce((s, it) => s + it.quantidade, 0)
   const totalValorH010 = itensH010.reduce((s, it) => s + it.valorTotal, 0)
 
+  // Totais dos itens C170 (mesmo universo listado na prévia do Bloco C)
+  const itensC170 = blocoC.registros.flatMap((reg) => reg.itens)
+  const totalQtdC170 = itensC170.reduce((s, it) => s + it.qtd, 0)
+  const totalValorC170 = itensC170.reduce((s, it) => s + it.vlItem, 0)
+  const totalIcmsC170 = itensC170.reduce((s, it) => s + it.vlIcms, 0)
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -341,6 +347,34 @@ export default function SpedPage() {
                         </React.Fragment>
                       ))}
                     </TableBody>
+                    <tfoot>
+                      <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold text-xs">
+                        <td className="py-2 px-2 whitespace-nowrap" colSpan={7}>
+                          Totais C170 ({itensC170.length} itens)
+                        </td>
+                        <td
+                          className={`py-2 px-2 text-right font-mono whitespace-nowrap ${
+                            totalQtdC170 < 0 ? 'text-rose-700' : ''
+                          }`}
+                        >
+                          {totalQtdC170.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono whitespace-nowrap">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(totalValorC170)}
+                        </td>
+                        <td className="py-2 px-2" aria-hidden="true" />
+                        <td className="py-2 px-2" aria-hidden="true" />
+                        <td className="py-2 px-2 text-right font-mono whitespace-nowrap">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(totalIcmsC170)}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </Table>
                 </div>
               )}
@@ -417,7 +451,7 @@ export default function SpedPage() {
                       >
                         {totalQtdK200.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
                       </td>
-                      <td className="py-2 px-2" />
+                      <td className="py-2 px-2" aria-hidden="true" />
                     </tr>
                   </tfoot>
                 </Table>
@@ -511,7 +545,7 @@ export default function SpedPage() {
                       >
                         {totalQtdH010.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
                       </td>
-                      <td className="py-2 px-2" />
+                      <td className="py-2 px-2" aria-hidden="true" />
                       <td
                         className={`py-2 px-2 text-right font-mono whitespace-nowrap ${
                           totalValorH010 < 0 ? 'text-rose-700' : 'text-emerald-900'
@@ -522,7 +556,7 @@ export default function SpedPage() {
                           currency: 'BRL',
                         }).format(totalValorH010)}
                       </td>
-                      <td className="py-2 px-2" />
+                      <td className="py-2 px-2" aria-hidden="true" />
                     </tr>
                   </tfoot>
                 </Table>
