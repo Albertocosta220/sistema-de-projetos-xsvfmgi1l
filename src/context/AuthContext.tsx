@@ -38,20 +38,45 @@ export interface NovoUsuario {
  * PocketBase via bancoService (espelho local para uso offline).
  */
 
+type ResultadoEdicaoUsuario =
+  | { ok: true }
+  | { ok: false; motivo: 'LOGIN_DUPLICADO' | 'ULTIMO_ADMIN' }
+type ResultadoCriacaoUsuario =
+  | { ok: true; usuario: Usuario }
+  | { ok: false; motivo: 'LOGIN_DUPLICADO' }
+type ResultadoAlternanciaUsuario =
+  | { ok: true }
+  | { ok: false; motivo: 'ULTIMO_ADMIN' | 'USUARIO_NAO_ENCONTRADO' }
+type ResultadoRedefinicaoSenha = { ok: true } | { ok: false; motivo: 'USUARIO_NAO_ENCONTRADO' }
+
 interface AuthContextValor {
   pronto: boolean
   sessao: Sessao | null
   usuarios: Usuario[]
   perfis: Perfil[]
   existeAdmin: boolean
+  /** Usuário logado derivado da sessão (null quando não há sessão válida). */
+  usuarioAtual: Usuario | null
+  /** true quando o boot terminou e ainda NÃO existe administrador ativo. */
+  precisaOnboarding: boolean
   entrar: (login: string, senha: string) => Promise<ResultadoLoginTipo>
   sair: () => void
   cadastrarAdministrador: (dados: NovoUsuarioAdminTipo) => Promise<Usuario>
   existeAdministrador: () => boolean
-  criarUsuario: (dados: NovoUsuario) => Promise<Usuario>
+  criarUsuario: (dados: NovoUsuario) => Promise<ResultadoCriacaoUsuario>
+  editarUsuario: (
+    id: string,
+    dados: { nome: string; login: string; perfilId: string },
+  ) => ResultadoEdicaoUsuario
+  salvarPerfil: (dados: {
+    id: string
+    nome: string
+    descricao: string
+    permissoes: string[]
+  }) => void
   atualizarUsuario: (id: string, dados: Partial<Usuario>) => Promise<void>
-  alternarAtivoUsuario: (id: string) => Promise<void>
-  redefinirSenha: (id: string, novaSenha: string) => Promise<void>
+  alternarAtivoUsuario: (id: string) => ResultadoAlternanciaUsuario
+  redefinirSenha: (id: string, novaSenha: string) => Promise<ResultadoRedefinicaoSenha>
   trocarPropriaSenha: (
     id: string,
     senhaAtual: string,
@@ -167,12 +192,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return usuario
   }
 
-  const criarUsuario = async (dados: NovoUsuario): Promise<Usuario> => {
+  const criarUsuario = async (dados: NovoUsuario): Promise<ResultadoCriacaoUsuario> => {
+    const login = dados.login.trim().toLowerCase()
+    if (carregarUsuarios().some((u) => u.login === login)) {
+      return { ok: false, motivo: 'LOGIN_DUPLICADO' }
+    }
     const agora = new Date().toISOString()
     const novo: Usuario = {
       id: novoId(),
       nome: dados.nome.trim(),
-      login: dados.login.trim().toLowerCase(),
+      login,
       senhaHash: await hashSenha(dados.senha),
       perfilId: dados.perfilId,
       ativo: dados.ativo ?? true,
@@ -181,7 +210,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     salvarUsuarios([...carregarUsuarios(), novo])
     setUsuarios(carregarUsuarios())
-    return novo
+    return { ok: true, usuario: novo }
+  }
+
+  /**
+   * Edição de usuário (nome, login e perfil). Sync por chamada da tela:
+   * LOGIN_DUPLICADO impede colisão de login e ULTIMO_ADMIN impede remover o
+   * último administrador ativo do sistema (perfil deixado pelo admin).
+   */
+  const editarUsuario = (
+    id: string,
+    dados: { nome: string; login: string; perfilId: string },
+  ): ResultadoEdicaoUsuario => {
+    const usuarios = carregarUsuarios()
+    const alvo = usuarios.find((u) => u.id === id)
+    if (!alvo) return { ok: false, motivo: 'ULTIMO_ADMIN' }
+    const login = dados.login.trim().toLowerCase()
+    if (usuarios.some((u) => u.id !== id && u.login === login)) {
+      return { ok: false, motivo: 'LOGIN_DUPLICADO' }
+    }
+    if (
+      alvo.perfilId === 'perfil-administrador' &&
+      dados.perfilId !== 'perfil-administrador' &&
+      !usuarios.some((u) => u.id !== id && u.perfilId === 'perfil-administrador' && u.ativo)
+    ) {
+      return { ok: false, motivo: 'ULTIMO_ADMIN' }
+    }
+    salvarUsuarios(
+      usuarios.map((u) =>
+        u.id === id
+          ? {
+              ...u,
+              nome: dados.nome.trim(),
+              login,
+              perfilId: dados.perfilId,
+              atualizadoEm: new Date().toISOString(),
+            }
+          : u,
+      ),
+    )
+    setUsuarios(carregarUsuarios())
+    if (sessaoAtual?.usuarioId === id) {
+      setSessao({ ...sessaoAtual, login, perfilId: dados.perfilId })
+    }
+    return { ok: true }
+  }
+
+  /** Cria (id vazio) ou edita um perfil — usado pela tela Sistema → Perfis. */
+  const salvarPerfil = (dados: {
+    id: string
+    nome: string
+    descricao: string
+    permissoes: string[]
+  }) => {
+    if (dados.id && dados.id !== 'perfil-administrador') {
+      void atualizarPerfil(dados.id, {
+        nome: dados.nome,
+        descricao: dados.descricao,
+        permissoes: dados.permissoes,
+      })
+      return
+    }
+    if (!dados.id) criarPerfil(dados)
   }
 
   const atualizarUsuario = async (id: string, dados: Partial<Usuario>) => {
@@ -196,9 +286,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const alternarAtivoUsuario = async (id: string) => {
+  const alternarAtivoUsuario = (id: string): ResultadoAlternanciaUsuario => {
+    const usuarios = carregarUsuarios()
+    const alvo = usuarios.find((u) => u.id === id)
+    if (!alvo) return { ok: false, motivo: 'USUARIO_NAO_ENCONTRADO' }
+    if (
+      alvo.ativo &&
+      alvo.perfilId === 'perfil-administrador' &&
+      !usuarios.some((u) => u.id !== id && u.perfilId === 'perfil-administrador' && u.ativo)
+    ) {
+      // Último administrador ativo: a desativação deixaria o sistema sem acesso.
+      return { ok: false, motivo: 'ULTIMO_ADMIN' }
+    }
     salvarUsuarios(
-      carregarUsuarios().map((u) =>
+      usuarios.map((u) =>
         u.id === id ? { ...u, ativo: !u.ativo, atualizadoEm: new Date().toISOString() } : u,
       ),
     )
@@ -206,16 +307,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (sessaoAtual?.usuarioId === id && !carregarUsuarios().find((u) => u.id === id)?.ativo) {
       sair()
     }
+    return { ok: true }
   }
 
-  const redefinirSenha = async (id: string, novaSenha: string) => {
+  const redefinirSenha = async (
+    id: string,
+    novaSenha: string,
+  ): Promise<ResultadoRedefinicaoSenha> => {
+    const usuarios = carregarUsuarios()
+    if (!usuarios.some((u) => u.id === id)) {
+      return { ok: false, motivo: 'USUARIO_NAO_ENCONTRADO' }
+    }
     const senhaHash = await hashSenha(novaSenha)
     salvarUsuarios(
-      carregarUsuarios().map((u) =>
+      usuarios.map((u) =>
         u.id === id ? { ...u, senhaHash, atualizadoEm: new Date().toISOString() } : u,
       ),
     )
     setUsuarios(carregarUsuarios())
+    return { ok: true }
   }
 
   const trocarPropriaSenha = async (
@@ -283,16 +393,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return Array.isArray(perfil?.permissoes) && perfil.permissoes.includes(codigo)
   }
 
+  const usuarioAtual = useMemo(
+    () => usuarios.find((u) => !!u && u.id === sessao?.usuarioId) ?? null,
+    [usuarios, sessao],
+  )
+  const precisaOnboarding = pronto && !existeAdmin
+
   const valor: AuthContextValor = {
     pronto,
     sessao: sessaoAtual,
     usuarios,
     perfis,
     existeAdmin,
+    usuarioAtual,
+    precisaOnboarding,
     entrar: efetuarLogin,
     sair,
     cadastrarAdministrador: cadastrarPrimeiroAdmin,
     existeAdministrador: () => existeAdmin,
+    editarUsuario,
+    salvarPerfil,
     criarUsuario,
     atualizarUsuario,
     alternarAtivoUsuario,
