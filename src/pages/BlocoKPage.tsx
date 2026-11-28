@@ -39,6 +39,15 @@ export default function BlocoKPage() {
     return t + (ult?.saldoValorTotal ?? 0)
   }, 0)
   const divergencia = saldoK - saldoH
+  // Totais da tabela K200 (mesmo universo listado: produtos cadastrados)
+  const totalQtdK = produtos.reduce((t, p) => {
+    const movs = kardex.filter((k) => k.codigoInventario === p.codigoInventario)
+    return t + (movs[movs.length - 1]?.saldoQuantidade ?? 0)
+  }, 0)
+  const totalQtdH = produtos.reduce((t, p) => {
+    const itemH = fechamento?.itensInventario.find((i) => i.codigoInventario === p.codigoInventario)
+    return t + (itemH?.quantidadeContada ?? 0)
+  }, 0)
 
   return (
     <div>
@@ -152,6 +161,26 @@ export default function BlocoKPage() {
                 </tr>
               )}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-[var(--sig-line,#e2e8f0)] bg-[var(--sig-bg-sub,#f8fafc)] font-bold text-xs">
+                <td className="py-1.5 px-2 whitespace-nowrap" colSpan={3}>
+                  Totais ({produtos.length} itens)
+                </td>
+                <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
+                  {num(totalQtdK)}
+                </td>
+                <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
+                  {num(totalQtdH)}
+                </td>
+                <td
+                  className={`py-1.5 px-2 text-right tabular-nums whitespace-nowrap ${
+                    saldoK < 0 ? 'text-rose-700' : ''
+                  }`}
+                >
+                  {brl(saldoK)}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </CardS>

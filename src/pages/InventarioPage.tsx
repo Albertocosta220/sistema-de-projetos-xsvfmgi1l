@@ -38,6 +38,8 @@ import {
 } from '@/components/ui/dialog'
 import { ItemContagemInventario } from '@/types/sigef'
 import { SeletorCompetencia } from '@/components/SeletorCompetencia'
+import { brl, num } from '@/components/shell'
+import { TabelaWrap, Th, Td, TdNum, TrTotais, TdTotal } from '@/components/tabelaPadrao'
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 
@@ -114,6 +116,8 @@ export default function InventarioPage() {
   const temBloqueio =
     isInapta || pendenciasDocumentos > 0 || duplicidades > 0 || saídasBloqueadas > 0
 
+  const totalQtdSistema = itensContagem.reduce((s, it) => s + it.quantidadeSistema, 0)
+  const totalDivergQtd = itensContagem.reduce((s, it) => s + it.diferencaQuantidade, 0)
   const totalValorSistema = itensContagem.reduce((s, it) => s + it.valorTotalSistema, 0)
   const totalValorContado = itensContagem.reduce(
     (s, it) => s + it.quantidadeContada * it.custoMedioSistema,
@@ -319,23 +323,23 @@ export default function InventarioPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="text-xs">
-                  <TableHead>Código</TableHead>
-                  <TableHead>Descrição da Mercadoria</TableHead>
-                  <TableHead>Unid.</TableHead>
-                  <TableHead className="text-right">Qtd Sistema</TableHead>
-                  <TableHead className="text-right">Custo Médio Unit.</TableHead>
-                  <TableHead className="text-right">Total Sistema</TableHead>
-                  <TableHead className="text-right w-36">Qtd Contada (Físico)</TableHead>
-                  <TableHead className="text-right">Divergência (Qtd)</TableHead>
-                  <TableHead className="text-right">Divergência (R$)</TableHead>
-                  <TableHead>Status Ajuste</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <TabelaWrap>
+            <table>
+              <thead>
+                <tr>
+                  <Th>Código</Th>
+                  <Th>Descrição da Mercadoria</Th>
+                  <Th>Unid.</Th>
+                  <Th className="text-right">Qtd Sistema</Th>
+                  <Th className="text-right">Custo Médio Unit.</Th>
+                  <Th className="text-right">Total Sistema</Th>
+                  <Th className="text-right">Qtd Contada (Físico)</Th>
+                  <Th className="text-right">Divergência (Qtd)</Th>
+                  <Th className="text-right">Divergência (R$)</Th>
+                  <Th>Status Ajuste</Th>
+                </tr>
+              </thead>
+              <tbody>
                 {itensContagem.map((it) => {
                   const temDivergencia = Math.abs(it.diferencaQuantidade) > 0.0001
                   // Itens importados por planilha com pendência fiscal ganham badge REVISAR
@@ -344,20 +348,22 @@ export default function InventarioPage() {
                   )
                   const revisar = produtoOrigem?.revisar
                   return (
-                    <TableRow
+                    <tr
                       key={it.codigoInventario}
-                      className={temDivergencia ? 'bg-amber-50/40' : undefined}
+                      className={`border-t border-[var(--sig-line,#e2e8f0)] ${
+                        temDivergencia ? 'bg-amber-50/40' : ''
+                      }`}
                     >
-                      <TableCell className="font-mono text-xs font-bold text-blue-800">
+                      <Td className="font-mono font-bold text-blue-800 whitespace-nowrap">
                         {it.codigoInventario}
-                      </TableCell>
-                      <TableCell className="text-xs font-medium max-w-[200px] truncate">
-                        <div className="flex flex-col gap-1">
-                          <span>{it.descricao}</span>
+                      </Td>
+                      <Td title={it.descricao} className="font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate max-w-[200px]">{it.descricao}</span>
                           {revisar && (
                             <Badge
                               variant="outline"
-                              className="w-fit border-amber-400 bg-amber-50 text-amber-800 text-[10px] gap-1"
+                              className="w-fit border-amber-400 bg-amber-50 text-amber-800 text-[10px] gap-1 shrink-0"
                               title={produtoOrigem?.observacaoImportacao}
                             >
                               <AlertTriangle className="size-3" />
@@ -365,26 +371,14 @@ export default function InventarioPage() {
                             </Badge>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-bold">{it.unidade}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">
-                        {it.quantidadeSistema.toFixed(3)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs">
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(it.custoMedioSistema)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs font-bold">
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(it.valorTotalSistema)}
-                      </TableCell>
+                      </Td>
+                      <Td className="font-bold whitespace-nowrap">{it.unidade}</Td>
+                      <TdNum>{num(it.quantidadeSistema)}</TdNum>
+                      <TdNum>{brl(it.custoMedioSistema)}</TdNum>
+                      <TdNum className="font-bold">{brl(it.valorTotalSistema)}</TdNum>
 
                       {/* Input de Contagem Física */}
-                      <TableCell className="text-right">
+                      <td className="py-1.5 pr-3 text-right">
                         <Input
                           type="number"
                           step="0.001"
@@ -402,13 +396,13 @@ export default function InventarioPage() {
                             )
                           }
                           aria-label={`Quantidade contada de ${it.codigoInventario}`}
-                          className="h-7 text-xs font-mono font-bold text-right w-28 inline-block"
+                          className="h-7 text-xs font-mono font-bold text-right w-24 inline-block"
                         />
-                      </TableCell>
+                      </td>
 
                       {/* Divergência em Quantidade */}
-                      <TableCell
-                        className={`text-right font-mono text-xs font-bold ${
+                      <TdNum
+                        className={`font-bold ${
                           temDivergencia
                             ? it.diferencaQuantidade > 0
                               ? 'text-emerald-700'
@@ -417,12 +411,12 @@ export default function InventarioPage() {
                         }`}
                       >
                         {it.diferencaQuantidade > 0 ? '+' : ''}
-                        {it.diferencaQuantidade.toFixed(3)}
-                      </TableCell>
+                        {num(it.diferencaQuantidade)}
+                      </TdNum>
 
                       {/* Divergência em Valor */}
-                      <TableCell
-                        className={`text-right font-mono text-xs font-bold ${
+                      <TdNum
+                        className={`font-bold ${
                           temDivergencia
                             ? it.diferencaValor > 0
                               ? 'text-emerald-700'
@@ -430,14 +424,11 @@ export default function InventarioPage() {
                             : 'text-slate-400'
                         }`}
                       >
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(it.diferencaValor)}
-                      </TableCell>
+                        {brl(it.diferencaValor)}
+                      </TdNum>
 
                       {/* Status */}
-                      <TableCell>
+                      <Td>
                         {temDivergencia ? (
                           <Badge
                             variant="outline"
@@ -453,13 +444,24 @@ export default function InventarioPage() {
                             CONCILIADO
                           </Badge>
                         )}
-                      </TableCell>
-                    </TableRow>
+                      </Td>
+                    </tr>
                   )
                 })}
-              </TableBody>
-            </Table>
-          </div>
+              </tbody>
+              <tfoot>
+                <TrTotais titulo={`Totais da contagem (${itensContagem.length} itens)`} colSpan={3}>
+                  <TdTotal valor={totalQtdSistema} fmt={fmtQtd} />
+                  <td />
+                  <TdTotal valor={totalValorSistema} fmt={brl} />
+                  <td />
+                  <TdTotal valor={totalDivergQtd} fmt={fmtQtd} />
+                  <TdTotal valor={totalDiferencaValor} fmt={brl} />
+                  <td />
+                </TrTotais>
+              </tfoot>
+            </table>
+          </TabelaWrap>
         </CardContent>
       </Card>
 

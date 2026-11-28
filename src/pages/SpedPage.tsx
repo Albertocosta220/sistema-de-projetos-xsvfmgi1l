@@ -88,6 +88,7 @@ export default function SpedPage() {
       quantidade: qtd,
     }
   })
+  const totalQtdK200 = itensK200.reduce((s, it) => s + it.quantidade, 0)
 
   // Registros H010 para a prévia
   const itensH010 = produtos.map((p) => {
@@ -110,6 +111,8 @@ export default function SpedPage() {
       valorTotal: total,
     }
   })
+  const totalQtdH010 = itensH010.reduce((s, it) => s + it.quantidade, 0)
+  const totalValorH010 = itensH010.reduce((s, it) => s + it.valorTotal, 0)
 
   return (
     <div className="space-y-6">
@@ -394,7 +397,29 @@ export default function SpedPage() {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {itensK200.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-xs text-slate-500">
+                          Nenhum produto cadastrado.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
+                  <tfoot>
+                    <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold text-xs">
+                      <td className="py-2 px-2 whitespace-nowrap" colSpan={5}>
+                        Totais K200 ({itensK200.length} itens)
+                      </td>
+                      <td
+                        className={`py-2 px-2 text-right font-mono whitespace-nowrap ${
+                          totalQtdK200 < 0 ? 'text-rose-700' : ''
+                        }`}
+                      >
+                        {totalQtdK200.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+                      </td>
+                      <td className="py-2 px-2" />
+                    </tr>
+                  </tfoot>
                 </Table>
               </div>
             </CardContent>
@@ -417,7 +442,7 @@ export default function SpedPage() {
                 <div className="text-right font-bold text-emerald-800 text-sm">
                   Total:{' '}
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                    itensH010.reduce((s, it) => s + it.valorTotal, 0),
+                    totalValorH010,
                   )}
                 </div>
               </div>
@@ -466,7 +491,40 @@ export default function SpedPage() {
                         <TableCell className="text-slate-600">0 - Em seu poder</TableCell>
                       </TableRow>
                     ))}
+                    {itensH010.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-xs text-slate-500">
+                          Nenhum produto cadastrado.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
+                  <tfoot>
+                    <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold text-xs">
+                      <td className="py-2 px-2 whitespace-nowrap" colSpan={4}>
+                        Totais H010 ({itensH010.length} itens)
+                      </td>
+                      <td
+                        className={`py-2 px-2 text-right font-mono whitespace-nowrap ${
+                          totalQtdH010 < 0 ? 'text-rose-700' : ''
+                        }`}
+                      >
+                        {totalQtdH010.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+                      </td>
+                      <td className="py-2 px-2" />
+                      <td
+                        className={`py-2 px-2 text-right font-mono whitespace-nowrap ${
+                          totalValorH010 < 0 ? 'text-rose-700' : 'text-emerald-900'
+                        }`}
+                      >
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        }).format(totalValorH010)}
+                      </td>
+                      <td className="py-2 px-2" />
+                    </tr>
+                  </tfoot>
                 </Table>
               </div>
             </CardContent>

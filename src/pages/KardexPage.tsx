@@ -59,6 +59,13 @@ export default function KardexPage() {
 
   const saídasBloqueadasProd = movsFiltrados.filter((m) => m.bloqueadoSaldoNegativo).length
 
+  // Totais do extrato exibido (respeitam o filtro de produto): entradas e saídas
+  // somadas; saldo final = último movimento. Bloqueadas/estornadas não somam valor.
+  const totQtdEntrada = movsFiltrados.reduce((s, m) => s + (m.quantidadeEntrada || 0), 0)
+  const totValorEntrada = movsFiltrados.reduce((s, m) => s + (m.valorTotalEntrada || 0), 0)
+  const totQtdSaida = movsFiltrados.reduce((s, m) => s + (m.quantidadeSaida || 0), 0)
+  const totValorSaida = movsFiltrados.reduce((s, m) => s + (m.valorTotalSaida || 0), 0)
+
   // Exportar extrato Kardex em CSV
   const exportarKardexCsv = () => {
     const cabecalho = [
@@ -383,6 +390,51 @@ export default function KardexPage() {
                     )
                   })}
                 </TableBody>
+                <tfoot>
+                  <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold text-xs">
+                    <td className="py-2 px-2 whitespace-nowrap" colSpan={4}>
+                      Totais do extrato ({movsFiltrados.length} lançamentos)
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono whitespace-nowrap text-emerald-800 bg-emerald-50/50">
+                      {totQtdEntrada.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+                    </td>
+                    <td className="py-2 px-2 bg-emerald-50/50" />
+                    <td className="py-2 px-2 text-right font-mono whitespace-nowrap text-emerald-900 bg-emerald-50/50">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(totValorEntrada)}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono whitespace-nowrap text-blue-800 bg-blue-50/50">
+                      {totQtdSaida.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono whitespace-nowrap text-blue-900 bg-blue-50/50">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(totValorSaida)}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono whitespace-nowrap bg-slate-100">
+                      {saldoQtdAtual.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
+                    </td>
+                    <td className="py-2 px-2 text-right font-mono whitespace-nowrap text-blue-900 bg-slate-100">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(custoMedioAtual)}
+                    </td>
+                    <td
+                      className={`py-2 px-2 text-right font-mono whitespace-nowrap bg-slate-100 ${
+                        saldoValorAtual < 0 ? 'text-rose-700' : 'text-slate-900'
+                      }`}
+                    >
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(saldoValorAtual)}
+                    </td>
+                  </tr>
+                </tfoot>
               </Table>
             </div>
           )}
