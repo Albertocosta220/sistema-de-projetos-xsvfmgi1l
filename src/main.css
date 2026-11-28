@@ -160,16 +160,78 @@ body {
    telas compartilham os mesmos tamanhos via variáveis — nada de text-[9px],
    text-[10px]... avulsos espalhados. */
 :root {
-  /* Escala compacta a 9px (pedido do usuário: "tamanho texto paginas 9 px").
-     O texto principal (página, tabelas, formulários) fica em 9px e os tokens
-     relacionados descem proporcionalmente; títulos/KPI/menu ficam maiores para
-     manter hierarquia e legibilidade. */
-  --fs-body: 9px; /* texto de página, tabelas e formulários */
-  --fs-small: 8px; /* legendas, hints e descrições */
-  --fs-mini: 7px; /* cabeçalhos de tabela e badges */
-  --fs-titulo: 18px; /* títulos de cartão/seção fora do shell (inalterado) */
-  --fs-mono: 8px; /* código monoespaçado (XML, SPED, chaves) */
+  /* Harmonização v2.7 — escala tipográfica ÚNICA em 8 degraus:
+     micro 10 (etiquetas, badges, cabeçalho de tabela) · xs 11,5 (legendas
+     de campo, notas) · sm 12,5 (corpo de tabelas e formulários) ·
+     base 13,5 (parágrafos) · md 15 (subtítulo de bloco) · lg 18 (título de
+     seção) · xl 22 (título de aba) · 2xl 28 (título de relatório).
+     Os tokens legados mapeiam para esta escala: --fs-body=base 13,5px,
+     --fs-small=xs 11,5px, --fs-mini=micro 10px, --fs-mono=12px.
+     Substitui a escala compacta de 9px da v0.0.47 (que prevalecia até aqui). */
+  --fs-micro: 10px;
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-base: 13.5px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+  --fs-2xl: 28px;
+  --fs-body: 13.5px; /* texto de página, tabelas e formulários (= base) */
+  --fs-small: 11.5px; /* legendas, hints e descrições (= xs) */
+  --fs-mini: 10px; /* cabeçalhos de tabela e badges (= micro) */
+  --fs-titulo: 18px; /* títulos de cartão/seção fora do shell (= lg) */
+  --fs-mono: 12px; /* código monoespaçado (XML, SPED, chaves) */
+  /* Harmonização v2.7 — escala de espaçamento de 4px */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  /* Harmonização v2.7 — alturas padronizadas de controles */
+  --h-controle: 34px; /* inputs, selects e botões secundários */
+  --h-botao-tabela: 28px; /* botões em linha de tabela */
+  --h-botao-primario: 40px; /* botão primário principal */
+  --h-topbar: 56px; /* cabeçalho fixo */
+  --h-tabbar: 40px; /* barra de abas */
+  --h-rodape: 40px; /* rodapé fixo */
 }
+
+/* Harmonização v2.7 — prevenção de estouro: nenhum filho de flex/grid
+   estoura o cartão; texto quebra; imagens/tabelas nunca passam de 100%. */
+main *:not(svg):not(svg *),
+.app-shell *:not(svg):not(svg *) {
+  min-width: 0;
+}
+main img,
+main video {
+  max-width: 100%;
+  height: auto;
+}
+main p,
+main li,
+main td,
+main th,
+main dd,
+main dt {
+  overflow-wrap: break-word;
+}
+main table,
+main pre {
+  max-width: 100%;
+}
+main table {
+  display: table;
+}
+/* Tabelas vivem dentro de wrapper com rolagem horizontal própria — a página
+   inteira nunca rola por causa de uma tabela larga. */
+main div:has(> table) {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 main p,
 main li,
 main td,
@@ -179,10 +241,10 @@ main select,
 main textarea {
   font-size: var(--fs-body);
 }
-/* Rótulos (label) acompanham o menu/abas em 12px: um rótulo a 9px dentro de
-   campos com min-height 36px ficaria afogado; o texto digitado sim desce. */
+/* Rótulo de campo segue a escala v2.7 (--fs-sm 12,5px): legível sobre campos
+   de 34px e proporcional ao corpo de 13,5px. */
 main label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 main small,
 main .sub,
@@ -198,7 +260,7 @@ main .text-muted {
   font-size: var(--fs-body);
 }
 .login-bg label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .login-bg .text-xs,
 .login-bg .text-\[11px\] {
@@ -223,7 +285,7 @@ sigef-shell,
 .sig-sidebar {
   background: #0f172a;
   color: #cbd5e1;
-  padding: 14px 10px 20px;
+  padding: var(--sp-4) var(--sp-2) var(--sp-5);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -235,14 +297,14 @@ sigef-shell,
 .sig-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px 14px;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  margin-bottom: 10px;
+  margin-bottom: var(--sp-2);
 }
 .sig-brand strong {
   color: #fff;
-  font-size: 15px;
+  font-size: var(--fs-md);
   letter-spacing: 0.02em;
 }
 .sig-brand span {
@@ -255,23 +317,25 @@ sigef-shell,
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: #64748b;
-  margin: 12px 8px 4px;
+  margin: var(--sp-3) var(--sp-2) var(--sp-1);
   font-weight: 700;
 }
 .sig-nav {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--sp-2);
   width: 100%;
-  padding: 7px 10px;
+  padding: 0 var(--sp-2);
+  height: var(--h-controle);
   border-radius: 8px;
-  /* Menu: permanece em 12px (não acompanha a queda do corpo para 9px) */
-  font-size: 12px;
+  /* Menu segue a escala v2.7: --fs-sm 12,5px (o corpo de página é 13,5px) */
+  font-size: var(--fs-sm);
   color: #cbd5e1;
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
   text-align: left;
+  box-sizing: border-box;
 }
 .sig-nav svg {
   width: 15px;
@@ -299,34 +363,37 @@ sigef-shell,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 22px;
+  gap: var(--sp-3);
+  /* Cabeçalho fixo: 56px na escala v2.7 */
+  height: var(--h-topbar);
+  padding: 0 var(--sp-5);
   background: var(--sig-surface);
   border-bottom: 1px solid var(--sig-border);
   position: sticky;
   top: 0;
   z-index: 20;
+  box-sizing: border-box;
 }
 .sig-topbar .sig-top-title {
-  /* Título do topo: acompanha o menu (12px), não o corpo de 9px */
-  font-size: 12px;
+  /* Título do topo: subtítulo de bloco (md 15px) na escala v2.7 */
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--petroleo);
 }
 .sig-content {
-  padding: 22px 22px 40px;
+  padding: var(--sp-5) var(--sp-5) var(--sp-10);
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
 }
 
 .page-head {
-  margin-bottom: 18px;
+  margin-bottom: var(--sp-4);
 }
 .eyebrow-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   font-size: var(--fs-mini);
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -336,12 +403,12 @@ sigef-shell,
   border: 1px solid #bfdbfe;
   border-radius: 999px;
   padding: 3px 10px;
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-2);
 }
 .page-head h1 {
   font-size: clamp(22px, 3vw, 30px);
   line-height: 1.15;
-  margin: 0 0 6px;
+  margin: 0 0 var(--sp-2);
   color: var(--petroleo);
   font-weight: 750;
 }
@@ -357,7 +424,7 @@ sigef-shell,
   border: 1px solid var(--sig-border);
   border-radius: var(--sig-radius);
   box-shadow: var(--sig-shadow);
-  padding: 20px;
+  padding: var(--sp-5);
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;
@@ -369,22 +436,23 @@ sigef-shell,
   }
 }
 .card-s + .card-s {
-  margin-top: 14px;
+  margin-top: var(--sp-4);
 }
 .card-s h2 {
-  font-size: 15px;
+  /* Título de cartão: subtítulo de bloco (md 15px) na escala v2.7 */
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--petroleo);
-  margin: 0 0 4px;
+  margin: 0 0 var(--sp-1);
 }
 .card-s .sub {
   font-size: var(--fs-small);
   color: var(--sig-muted);
-  margin: 0 0 12px;
+  margin: 0 0 var(--sp-3);
 }
 .kpi-grid {
   display: grid;
-  gap: 12px;
+  gap: var(--sp-3);
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 .kpi-b {
@@ -392,7 +460,7 @@ sigef-shell,
   border: 1px solid var(--sig-border);
   border-radius: var(--sig-radius);
   box-shadow: var(--sig-shadow);
-  padding: 16px 18px;
+  padding: var(--sp-4) var(--sp-4);
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;
@@ -414,8 +482,9 @@ sigef-shell,
 }
 .kpi-b .kpi-value {
   display: block;
-  /* Tamanho fixo (sem clamp/vw): um valor grande nunca invade a linha do hint */
-  font-size: 22px;
+  /* Título de aba (xl 22px) na escala v2.7 — tamanho fixo, sem clamp/vw:
+     um valor grande nunca invade a linha do hint */
+  font-size: var(--fs-xl);
   font-weight: 750;
   color: var(--petroleo);
   line-height: 1.2;
@@ -472,12 +541,12 @@ main thead th {
   color: var(--sig-muted);
   font-weight: 700;
   border-bottom: 1px solid var(--sig-border);
-  padding: 8px 10px;
+  padding: var(--sp-2) var(--sp-2);
   background: #f8fafc;
 }
 main tbody td {
   border-bottom: 1px solid #f1f5f9;
-  padding: 8px 10px;
+  padding: var(--sp-2) var(--sp-2);
   vertical-align: top;
 }
 main tbody tr:hover td {
@@ -488,7 +557,7 @@ main tbody tr:hover td {
 .badge-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
   padding: 2px 9px;
   border-radius: 999px;
   font-size: var(--fs-mini);
@@ -702,23 +771,27 @@ main .sub,
 main .text-muted {
   font-size: var(--fs-small) !important;
 }
-/* Títulos de cartão/aba permanecem legíveis na escala nova */
-main h2,
-main h3 {
-  font-size: var(--fs-titulo);
+/* Títulos de seção (lg 18px) e subtítulo de bloco (md 15px) na escala v2.7 */
+main h2 {
+  font-size: var(--fs-lg);
   line-height: 1.25;
 }
-main .text-xl,
+main h3 {
+  font-size: var(--fs-md);
+  line-height: 1.25;
+}
+main .text-xl {
+  font-size: var(--fs-lg);
+}
 main .text-2xl {
-  font-size: var(--fs-titulo);
+  font-size: var(--fs-xl);
 }
 main .font-mono[class*='text-['],
 main pre.font-mono,
 main pre {
   font-size: var(--fs-mono);
 }
-main .badge-pill,
-.badge-pill {
+main .badge-pill {
   font-size: var(--fs-mini);
 }
 main [data-slot='button'],
@@ -733,7 +806,7 @@ main button.shadow-xs {
   border: 1px solid #0f172a;
   border-radius: var(--sig-radius);
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.35);
-  padding: 20px;
+  padding: var(--sp-5);
 }
 .card-destaque h2 {
   color: #f8fafc;
@@ -745,19 +818,25 @@ main button.shadow-xs {
 /* ---- Tab bar ---- */
 .tab-bar {
   display: inline-flex;
-  gap: 4px;
-  padding: 4px;
+  gap: var(--sp-1);
+  /* Barra de abas: 40px na escala v2.7 */
+  height: var(--h-tabbar);
+  padding: 0 var(--sp-1);
   border-radius: 999px;
   background: #ffffff;
   border: 1px solid var(--sig-border);
   overflow-x: auto;
   max-width: 100%;
+  box-sizing: border-box;
 }
 .tab-bar [role='tab'] {
-  padding: 6px 14px;
+  padding: 0 14px;
   border-radius: 999px;
-  /* Abas: seguem o menu (12px), não encolhem com o corpo de 9px */
-  font-size: 12px;
+  /* Abas seguem o menu (--fs-sm 12,5px) na escala v2.7 */
+  font-size: var(--fs-sm);
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
   font-weight: 600;
   color: var(--sig-muted);
   background: transparent;
@@ -783,19 +862,19 @@ main button.shadow-xs {
 .field-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--sp-3);
   align-items: flex-end;
 }
 .field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--sp-1);
   min-width: 180px;
 }
 .field label {
-  /* Rótulo de campo: acompanha o menu (12px) para não ficar ilegível sobre
-     inputs de 9px — o texto digitado sim desce para 9px */
-  font-size: 12px;
+  /* Rótulo de campo: --fs-sm (12,5px) na escala v2.7 — legível sobre campos
+     de 34px e proporcional ao corpo de 13,5px */
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--petroleo);
 }
@@ -804,14 +883,24 @@ main button.shadow-xs {
   color: var(--sig-muted);
 }
 .sig-input {
-  min-height: 36px;
-  padding: 6px 12px;
+  /* Inputs/selects: 34px de altura na escala v2.7, com box-sizing: border-box */
+  height: var(--h-controle);
+  min-height: var(--h-controle);
+  padding: 0 var(--sp-3);
   border: 1px solid var(--sig-border);
   border-radius: 8px;
   background: var(--sig-surface);
   color: var(--petroleo);
   font-size: var(--fs-body);
   width: 100%;
+  box-sizing: border-box;
+}
+.sig-input[type='checkbox'],
+.sig-input[type='radio'] {
+  height: 15px;
+  width: 15px;
+  min-height: 0;
+  padding: 0;
 }
 .sig-input:focus-visible {
   outline: 2px solid var(--accent);
@@ -835,7 +924,7 @@ main button.shadow-xs {
   border: 1px solid var(--sig-border, #e2e8f0);
   border-radius: var(--sig-radius, 20px);
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.35);
-  padding: 28px 26px;
+  padding: var(--sp-6) var(--sp-6);
 }
 .login-card input {
   color: var(--petroleo, #0f172a);
@@ -848,7 +937,7 @@ main button.shadow-xs {
   color: #bfdbfe;
   border-radius: var(--sig-radius);
   border: 1px solid #1e293b;
-  padding: 12px 14px;
+  padding: var(--sp-3) var(--sp-4);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--fs-mono);
   line-height: 1.6;
@@ -858,9 +947,9 @@ main button.shadow-xs {
 /* ---- Passos ---- */
 .prose-step {
   margin: 0;
-  padding-left: 20px;
+  padding-left: var(--sp-5);
   display: grid;
-  gap: 8px;
+  gap: var(--sp-2);
   font-size: var(--fs-body);
   color: var(--sig-muted);
 }
@@ -873,8 +962,56 @@ main button.shadow-xs {
   border-top: 1px solid var(--sig-border);
   color: var(--sig-muted);
   font-size: var(--fs-small);
-  padding: 14px 22px 22px;
+  /* Rodapé fixo: 40px na escala v2.7 */
+  height: var(--h-rodape);
+  padding: 0 var(--sp-5);
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+/* Checkbox e radio globais: 15×15px na escala v2.7 */
+main input[type='checkbox'],
+main input[type='radio'] {
+  width: 15px;
+  height: 15px;
+  box-sizing: border-box;
+  flex: none;
+}
+/* Botões em linha de tabela: 28px (escala v2.7) */
+main td [data-slot='button'],
+main td button[data-slot='button'] {
+  height: var(--h-botao-tabela);
+  padding: 0 var(--sp-2);
+  box-sizing: border-box;
+}
+/* Botão primário principal: 40px (escala v2.7) */
+main button[data-slot='button'].bg-primary,
+main [data-slot='button'].bg-primary {
+  height: var(--h-botao-primario);
+  box-sizing: border-box;
+}
+/* Botões secundários (shadcn outline/secondary/ghost fora de tabela): 34px */
+main [data-slot='button'] {
+  height: var(--h-controle);
+  box-sizing: border-box;
+}
+/* Modais (shadcn Dialog) com corpo rolável e limite de altura na escala v2.7 */
+main [data-slot='dialog-content'] {
+  max-height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+main [data-slot='dialog-content'] [data-slot='dialog-body'] {
+  overflow-y: auto;
+  min-height: 0;
+}
+/* Alturas de controle alinham na mesma linha: nenhum campo fica maior que
+   o outro dentro de .field-row */
+.field-row > * {
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -894,7 +1031,7 @@ main button.shadow-xs {
     transform: translateX(0);
   }
   .sig-content {
-    padding: 16px 14px 32px;
+    padding: var(--sp-4) var(--sp-3) var(--sp-8);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1057,12 +1194,12 @@ main button.shadow-xs {
     animation: fade-in-up 0.6s ease-out;
   }
 
-  .animate-fade-in-down {
-    animation: fade-in-down 0.6s ease-out;
-  }
-
   .animate-fade-out-up {
     animation: fade-out-up 0.6s ease-out;
+  }
+
+  .animate-fade-in-down {
+    animation: fade-in-down 0.6s ease-out;
   }
 
   .animate-fade-out-down {

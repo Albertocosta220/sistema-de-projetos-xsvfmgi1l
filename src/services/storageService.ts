@@ -43,18 +43,11 @@ export function storeVazia(empresa?: Empresa): DadosEmpresaStore {
   }
 }
 
-export interface EmpresaLike {
-  id: string
-  razaoSocial?: string
-  nomeFantasia?: string
-  cnpj?: string
-  [k: string]: unknown
-}
-
 /** Aceita id (string) ou o objeto empresa — o contexto chama das duas formas. */
-function idDaEmpresa(empresa: string | EmpresaLike | null | undefined): string {
+function idDaEmpresa(empresa: string | { id?: unknown } | null | undefined): string {
   if (typeof empresa === 'string') return empresa
-  if (empresa && typeof empresa === 'object' && typeof empresa.id === 'string') return empresa.id
+  if (empresa && typeof empresa === 'object' && typeof (empresa as { id?: unknown }).id === 'string')
+    return empresa.id as string
   return ''
 }
 
@@ -101,7 +94,7 @@ export function salvarIdEmpresaAtiva(id: string): void {
  * e nunca devolve estrutura incompleta: toda lista ausente/corrompida vira [].
  */
 export function carregarDadosEmpresa(
-  empresa: string | EmpresaLike | null | undefined,
+  empresa: string | { id?: unknown } | null | undefined,
 ): DadosEmpresaStore {
   const id = idDaEmpresa(empresa)
   const raw = id ? lerRaw(prefixoStore(id)) : null

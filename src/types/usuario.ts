@@ -18,6 +18,7 @@ export interface Perfil {
   descricao: string
   permissoes: string[] // chaves de TELAS + ACOES (ver abaixo)
   sistema: boolean // criado automaticamente no onboarding (Administrador não editável)
+  criadoEm?: string // data de criação do perfil (gravada em criarPerfil, opcional p/ registros antigos)
   atualizadoEm: string
 }
 

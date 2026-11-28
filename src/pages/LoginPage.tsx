@@ -18,7 +18,8 @@ export default function LoginPage() {
     usuarioAtual,
     precisaOnboarding,
     entrar,
-    criarAdministrador,
+    // O contexto expõe cadastrarAdministrador; aqui recebe o nome usado pela tela.
+    cadastrarAdministrador: criarAdministrador,
     redefinirSenhaAdmin,
   } = useAuth()
   const navigate = useNavigate()
