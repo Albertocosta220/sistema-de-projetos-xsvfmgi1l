@@ -23,7 +23,7 @@ export interface DadosEmpresaStore {
 const prefixoStore = (idEmpresa: string) => `sigef_store_empresa_${idEmpresa}`
 const CHAVE_EMPRESAS = 'sigef_empresas_lista'
 const CHAVE_ID_ATIVA = 'sigef_empresa_ativa_id'
-const MARCADOR_XML_COMPACTADO = 'sigef:xml-compactado:'
+export const MARCADOR_XML_COMPACTADO = 'sigef:xml-compactado:'
 
 function carregarEmpresasBrutas(): unknown[] {
   const raw = lerRaw(CHAVE_EMPRESAS)
