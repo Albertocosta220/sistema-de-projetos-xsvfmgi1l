@@ -103,24 +103,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessao(nova)
   }, [])
 
-  // Boot: garante perfis padrão (estrutura, não dados de exemplo) e restaura a sessão
+  // Boot: garante perfis padrão (estrutura, não dados de exemplo) e restaura a sessão.
+  // O boot roda dentro de try/catch: um dado corrompido no localStorage
+  // (usuário/perfil null, JSON quebrado) nunca pode derrubar o provider — que
+  // envolve também a rota /login — nem deixar o app preso em !pronto (tela branca).
   useEffect(() => {
-    garantirPerfisPadrao()
-    const lista = carregarUsuarios()
-    setUsuarios(lista)
-    setPerfis(carregarPerfis())
+    try {
+      garantirPerfisPadrao()
+      const lista = carregarUsuarios().filter((u) => u && typeof u === 'object')
+      setUsuarios(lista)
+      setPerfis(carregarPerfis().filter((p) => p && typeof p === 'object'))
 
-    const sessaoSalva = carregarSessao()
-    if (sessaoSalva) {
-      const usuario = lista.find((u) => u.id === sessaoSalva.usuarioId && u.ativo)
-      if (usuario) {
-        setUsuarioAtual(usuario)
-        setSessao(sessaoSalva)
-      } else {
-        limparSessao()
+      const sessaoSalva = carregarSessao()
+      if (sessaoSalva) {
+        const usuario = lista.find((u) => u.id === sessaoSalva.usuarioId && u.ativo)
+        if (usuario) {
+          setUsuarioAtual(usuario)
+          setSessao(sessaoSalva)
+        } else {
+          limparSessao()
+        }
       }
+    } catch (e) {
+      console.error('[SIGEF] boot de autenticação ignorou erro:', e)
+      limparSessao()
+    } finally {
+      setPronto(true)
     }
-    setPronto(true)
   }, [])
 
   const precisaOnboarding = !existeAdministrador()
@@ -376,8 +385,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // O Administrador (perfil do onboarding) tem acesso total INALIENÁVEL,
       // garantido por código — nem uma matriz corrompida bloqueia o admin.
       if (usuarioAtual.perfilId === 'perfil-administrador') return true
-      const doPerfil = perfis.find((p) => p.id === usuarioAtual.perfilId)?.permissoes ?? []
-      return doPerfil.includes(chave)
+      const doPerfil = perfis.find((p) => p?.id === usuarioAtual.perfilId)?.permissoes ?? []
+      return Array.isArray(doPerfil) && doPerfil.includes(chave)
     },
     [usuarioAtual, perfis],
   )

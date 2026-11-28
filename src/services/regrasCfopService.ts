@@ -45,9 +45,14 @@ export function migrarRegrasCfopLegadas(
   regrasAtuais: RegraCfop[],
   dePara: DeParaVigente[],
 ): { regras: RegraCfop[]; deParaLimpo: DeParaVigente[]; migradas: number } {
-  const cfs = dePara.filter(
+  // Tolerância: uma entrada corrompida (null ou sem cProd) na store não pode
+  // derrubar a migração — e com ela o provider inteiro, inclusive /login.
+  const lista = Array.isArray(dePara) ? dePara.filter((dp) => dp && typeof dp === 'object') : []
+  const cfs = lista.filter(
     (dp) =>
+      typeof dp.cProd === 'string' &&
       dp.cProd.trim().toUpperCase().startsWith('CFOP-') &&
+      typeof dp.cnpjFornecedor === 'string' &&
       dp.cnpjFornecedor.replace(/\D/g, '') === CNPJ_REGRA_CFOP_LEGADO,
   )
 

@@ -160,26 +160,56 @@ body {
    telas compartilham os mesmos tamanhos via variáveis — nada de text-[9px],
    text-[10px]... avulsos espalhados. */
 :root {
-  --fs-body: 13.5px; /* texto de página, tabelas e formulários */
-  --fs-small: 12px; /* legendas, hints e descrições */
-  --fs-mini: 11px; /* cabeçalhos de tabela e badges */
-  --fs-titulo: 18px; /* títulos de cartão/seção fora do shell */
-  --fs-mono: 11.5px; /* código monoespaçado (XML, SPED, chaves) */
+  /* Escala compacta a 9px (pedido do usuário: "tamanho texto paginas 9 px").
+     O texto principal (página, tabelas, formulários) fica em 9px e os tokens
+     relacionados descem proporcionalmente; títulos/KPI/menu ficam maiores para
+     manter hierarquia e legibilidade. */
+  --fs-body: 9px; /* texto de página, tabelas e formulários */
+  --fs-small: 8px; /* legendas, hints e descrições */
+  --fs-mini: 7px; /* cabeçalhos de tabela e badges */
+  --fs-titulo: 18px; /* títulos de cartão/seção fora do shell (inalterado) */
+  --fs-mono: 8px; /* código monoespaçado (XML, SPED, chaves) */
 }
 main p,
 main li,
 main td,
 main th[scope='row'],
-main label,
 main input,
 main select,
 main textarea {
   font-size: var(--fs-body);
 }
+/* Rótulos (label) acompanham o menu/abas em 12px: um rótulo a 9px dentro de
+   campos com min-height 36px ficaria afogado; o texto digitado sim desce. */
+main label {
+  font-size: 12px;
+}
 main small,
 main .sub,
 main .text-muted {
   font-size: var(--fs-small);
+}
+
+/* ---- Elementos FORA de <main> (a tela de login) seguem a mesma escala ---- */
+.login-bg p,
+.login-bg input,
+.login-bg small,
+.login-bg li {
+  font-size: var(--fs-body);
+}
+.login-bg label {
+  font-size: 12px;
+}
+.login-bg .text-xs,
+.login-bg .text-\[11px\] {
+  font-size: var(--fs-small) !important;
+}
+.login-bg .text-lg,
+.login-bg .text-xl {
+  font-size: var(--fs-titulo) !important;
+}
+.login-bg .text-\[13px\] {
+  font-size: var(--fs-body);
 }
 
 sigef-shell,
@@ -216,12 +246,12 @@ sigef-shell,
   letter-spacing: 0.02em;
 }
 .sig-brand span {
-  font-size: 10.5px;
+  font-size: var(--fs-small);
   color: #94a3b8;
   display: block;
 }
 .sig-sidebar h4 {
-  font-size: 10.5px;
+  font-size: var(--fs-mini);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: #64748b;
@@ -235,7 +265,8 @@ sigef-shell,
   width: 100%;
   padding: 7px 10px;
   border-radius: 8px;
-  font-size: 13px;
+  /* Menu: permanece em 12px (não acompanha a queda do corpo para 9px) */
+  font-size: 12px;
   color: #cbd5e1;
   border: 1px solid transparent;
   background: transparent;
@@ -277,7 +308,8 @@ sigef-shell,
   z-index: 20;
 }
 .sig-topbar .sig-top-title {
-  font-size: 13px;
+  /* Título do topo: acompanha o menu (12px), não o corpo de 9px */
+  font-size: 12px;
   font-weight: 700;
   color: var(--petroleo);
 }
@@ -295,7 +327,7 @@ sigef-shell,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-mini);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -316,7 +348,7 @@ sigef-shell,
 .page-head p {
   margin: 0;
   color: var(--sig-muted);
-  font-size: 13.5px;
+  font-size: var(--fs-body);
 }
 
 /* ---- Cards, KPIs ---- */
@@ -346,7 +378,7 @@ sigef-shell,
   margin: 0 0 4px;
 }
 .card-s .sub {
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--sig-muted);
   margin: 0 0 12px;
 }
@@ -373,7 +405,7 @@ sigef-shell,
 }
 .kpi-b .kpi-label {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-mini);
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -391,7 +423,7 @@ sigef-shell,
 }
 .kpi-b .kpi-hint {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--sig-muted);
   line-height: 1.35;
   margin-top: 2px;
@@ -459,7 +491,7 @@ main tbody tr:hover td {
   gap: 4px;
   padding: 2px 9px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--fs-mini);
   font-weight: 650;
   border: 1px solid transparent;
   white-space: nowrap;
@@ -664,6 +696,18 @@ main .text-xs,
 main .text-sm {
   font-size: var(--fs-body);
 }
+/* Legendas e hints (small/sub/text-muted) descem para --fs-small na nova escala */
+main small,
+main .sub,
+main .text-muted {
+  font-size: var(--fs-small) !important;
+}
+/* Títulos de cartão/aba permanecem legíveis na escala nova */
+main h2,
+main h3 {
+  font-size: var(--fs-titulo);
+  line-height: 1.25;
+}
 main .text-xl,
 main .text-2xl {
   font-size: var(--fs-titulo);
@@ -712,7 +756,8 @@ main button.shadow-xs {
 .tab-bar [role='tab'] {
   padding: 6px 14px;
   border-radius: 999px;
-  font-size: 13px;
+  /* Abas: seguem o menu (12px), não encolhem com o corpo de 9px */
+  font-size: 12px;
   font-weight: 600;
   color: var(--sig-muted);
   background: transparent;
@@ -748,12 +793,14 @@ main button.shadow-xs {
   min-width: 180px;
 }
 .field label {
+  /* Rótulo de campo: acompanha o menu (12px) para não ficar ilegível sobre
+     inputs de 9px — o texto digitado sim desce para 9px */
   font-size: 12px;
   font-weight: 700;
   color: var(--petroleo);
 }
 .field small {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--sig-muted);
 }
 .sig-input {
@@ -763,7 +810,7 @@ main button.shadow-xs {
   border-radius: 8px;
   background: var(--sig-surface);
   color: var(--petroleo);
-  font-size: 13px;
+  font-size: var(--fs-body);
   width: 100%;
 }
 .sig-input:focus-visible {
@@ -803,7 +850,7 @@ main button.shadow-xs {
   border: 1px solid #1e293b;
   padding: 12px 14px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11.5px;
+  font-size: var(--fs-mono);
   line-height: 1.6;
   overflow: auto;
 }
@@ -814,7 +861,7 @@ main button.shadow-xs {
   padding-left: 20px;
   display: grid;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: var(--fs-body);
   color: var(--sig-muted);
 }
 .prose-step li::marker {
@@ -825,7 +872,7 @@ main button.shadow-xs {
 .footer-sig {
   border-top: 1px solid var(--sig-border);
   color: var(--sig-muted);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   padding: 14px 22px 22px;
   text-align: center;
 }

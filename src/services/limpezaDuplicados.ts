@@ -51,6 +51,9 @@ export function limparDocumentosDuplicados(
   const agora = new Date().toISOString()
   let a01Resolvidas = 0
   const ocorrenciasAjustadas = ocorrencias.map((o) => {
+    // Ocorrência corrompida (null/lixo) na store: mantida como está — varrê-la
+    // aqui derrubaria a carga da empresa (e /login, aninhada no provider).
+    if (!o || typeof o !== 'object') return o
     if (o.regraCodigo !== 'A01' || o.resolvido) return o
     const chave = (o.chaveAcessoRef || '').trim()
     const obsoleta = (chave && !chavesVistas.has(chave)) || chavesRemovidas.has(chave)

@@ -12,7 +12,9 @@ export function carregarEmpresasCadastradas(): Empresa[] {
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed
+        // Empresa corrompida (null/lixo) no array: descartada — o SigefProvider
+        // (e com ele a rota /login) roda dentro deste boot.
+        return parsed.filter((e) => e && typeof e === 'object' && typeof e.id === 'string')
       }
     }
   } catch (e) {
@@ -86,7 +88,9 @@ export function salvarDadosEmpresa(dados: DadosEmpresaStore): void {
   // e competência ativa — continua gravada por empresa.
   const persistido: DadosEmpresaStore = {
     ...dados,
-    documentos: dados.documentos.map((d) => ({ ...d, xmlOriginal: MARCADOR_XML_COMPACTADO })),
+    documentos: (Array.isArray(dados.documentos) ? dados.documentos : [])
+      .filter((d) => d && typeof d === 'object')
+      .map((d) => ({ ...d, xmlOriginal: MARCADOR_XML_COMPACTADO })),
   }
   try {
     localStorage.setItem(chave, JSON.stringify(persistido))
@@ -102,7 +106,8 @@ export function carregarHistoricoBackups(): BackupHistorico[] {
   try {
     const raw = localStorage.getItem(KEY_BACKUP_HISTORICO)
     if (raw) {
-      return JSON.parse(raw)
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.filter((b) => b && typeof b === 'object')
     }
   } catch (e) {
     console.error('Erro ao carregar histórico de backups:', e)

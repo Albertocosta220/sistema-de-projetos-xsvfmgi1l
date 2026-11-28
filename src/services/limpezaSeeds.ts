@@ -52,6 +52,9 @@ function marcarFlag(): void {
 export function limparDadosSeedsOneShot(): void {
   if (isFlagAtiva()) return
   try {
+    // ... corpo protegido abaixo; o catch garante que NENHUM erro desta
+    // rotina (roda no escopo do módulo, antes do primeiro paint) derrube o
+    // app inteiro — inclusive a rota /login, hoje aninhada no SigefProvider.
     // 1. Empresas semeadas
     const empresasRaw = localStorage.getItem(KEY_EMPRESAS_CADASTRO)
     if (empresasRaw) {
@@ -132,6 +135,12 @@ export function limparDadosSeedsOneShot(): void {
         // mantém: usuário pode ter dados reais; só ignora JSON inválido
       }
     }
+  } catch (e) {
+    // Catch EXTERNO obrigatório: isto roda no escopo do módulo (importação),
+    // antes do primeiro paint. Sem catch, um throw aqui (ex.: localStorage
+    // bloqueado lançando em get/setItem) derruba o app inteiro — inclusive a
+    // rota /login — para o ErrorBoundary, mesmo com dados não-seed.
+    console.error('[SIGEF] limparDadosSeedsOneShot interrompida:', e)
   } finally {
     marcarFlag()
   }
@@ -170,7 +179,12 @@ export function normalizarStore(dados: DadosEmpresaStore): DadosEmpresaStore {
     empresa: dados?.empresa ?? vazia.empresa,
     produtos: Array.isArray(dados?.produtos) ? dados.produtos : [],
     dePara: Array.isArray(dados?.dePara) ? dados.dePara : [],
-    documentos: Array.isArray(dados?.documentos) ? sanitizarDocumentos(dados.documentos) : [],
+    // Tolerância: um documento null/lixo dentro do array não pode derrubar a
+    // carga da store (e com ela /login, aninhada no mesmo provider) — filtrado
+    // ANTES da sanitização, que acessaria propriedades de null.
+    documentos: Array.isArray(dados?.documentos)
+      ? sanitizarDocumentos(dados.documentos.filter((d) => d != null))
+      : [],
     kardex: Array.isArray(dados?.kardex) ? dados.kardex : [],
     fechamentos: Array.isArray(dados?.fechamentos) ? dados.fechamentos : [],
     ocorrencias: Array.isArray(dados?.ocorrencias) ? dados.ocorrencias : [],
@@ -193,15 +207,16 @@ export function normalizarStore(dados: DadosEmpresaStore): DadosEmpresaStore {
  */
 export function documentoVazio(d: DocumentoFiscal): boolean {
   return (
-    (d.itens?.length ?? 0) === 0 &&
-    !d.cnpjEmitente?.replace(/\D/g, '') &&
-    !d.chaveAcesso?.replace(/\D/g, '')
+    !d ||
+    ((d.itens?.length ?? 0) === 0 &&
+      !d.cnpjEmitente?.replace(/\D/g, '') &&
+      !d.chaveAcesso?.replace(/\D/g, ''))
   )
 }
 
 function sanitizarDocumentos(documentos: DocumentoFiscal[]): DocumentoFiscal[] {
   return documentos
-    .filter((d) => d && !documentoVazio(d))
+    .filter((d) => d && typeof d === 'object' && !documentoVazio(d))
     .map((d) => ({
       ...d,
       // Garante os campos que o vínculo automático e o kardex varrem:

@@ -161,13 +161,29 @@ export function salvarPerfis(perfis: Perfil[]): void {
 export function garantirPerfisPadrao(): Perfil[] {
   const atuais = carregarPerfis()
   if (atuais.length > 0) {
-    const admin = atuais.find((p) => p.id === 'perfil-administrador')
-    if (!admin || admin.permissoes.length < TODAS_PERMISSOES.length) {
+    const admin = atuais.find((p) => p?.id === 'perfil-administrador')
+    if (
+      !admin ||
+      !Array.isArray(admin.permissoes) ||
+      admin.permissoes.length < TODAS_PERMISSOES.length
+    ) {
       let corrigidos = atuais.map((p) =>
-        p.id === 'perfil-administrador'
-          ? { ...p, permissoes: [...TODAS_PERMISSOES], sistema: true }
-          : p,
+        p?.id === 'perfil-administrador'
+          ? {
+              ...p,
+              // Perfil corrompido (null ou permissoes não-array) é restaurado,
+              // não propagado — o boot do AuthContext roda antes de /login.
+              ...(p && typeof p === 'object'
+                ? p
+                : { id: 'perfil-administrador', nome: 'Administrador' }),
+              permissoes: [...TODAS_PERMISSOES],
+              sistema: true,
+            }
+          : p && typeof p === 'object'
+            ? p
+            : null,
       )
+      corrigidos = corrigidos.filter((p): p is Perfil => !!p)
       if (!admin) {
         corrigidos = [
           {
@@ -335,7 +351,8 @@ export async function redefinirSenhaAdministrador(
 /** Lista de permissões efetivas de um perfil (vazio se o perfil não existir). */
 export function permissoesDoPerfil(perfilId: string): string[] {
   if (perfilId === 'perfil-administrador') return [...TODAS_PERMISSOES]
-  return carregarPerfis().find((p) => p.id === perfilId)?.permissoes ?? []
+  const perfil = carregarPerfis().find((p) => p?.id === perfilId)
+  return Array.isArray(perfil?.permissoes) ? perfil.permissoes : []
 }
 
 /** Garante que perfis recém-criados no código tenham todas as permissões novas. */

@@ -187,8 +187,16 @@ function competenciaDoPeriodo(
   return datas.length ? datas[datas.length - 1].slice(0, 7) : undefined
 }
 
-// Produção: remove uma única vez os dados de exemplo da v0.x antes de qualquer leitura
-limparDadosSeedsOneShot()
+// Produção: remove uma única vez os dados de exemplo da v0.x antes de qualquer leitura.
+// Try/catch no ESCOPO DO MÓDULO: se algo aqui lançar (ex.: localStorage bloqueado),
+// a importação do módulo falha e TODAS as rotas — inclusive /login — caem no
+// ErrorBoundary. A limpeza nunca pode derrubar o app.
+try {
+  limparDadosSeedsOneShot()
+} catch (e) {
+  // eslint-disable-next-line no-console
+  console.error('[SIGEF] limpeza de seeds ignorada por erro:', e)
+}
 
 export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [empresas, setEmpresas] = useState<Empresa[]>(carregarEmpresasCadastradas)

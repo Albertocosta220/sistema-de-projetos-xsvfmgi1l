@@ -189,6 +189,9 @@ function FormLogin({
         navigate('/', { replace: true })
       }
     } catch (err) {
+      // A senha nunca é parseada — segue como string para o hash SHA-256;
+      // qualquer erro aqui (storage cheio, crypto indisponível) vira mensagem,
+      // nunca crash na tela.
       console.error('Falha ao verificar o login:', err)
       setErro('Não foi possível verificar o login neste navegador. Tente novamente.')
     } finally {
@@ -223,6 +226,9 @@ function FormLogin({
       } else {
         navigate('/', { replace: true })
       }
+    } catch (err) {
+      console.error('Falha ao redefinir a senha:', err)
+      setErro('Não foi possível redefinir a senha neste navegador. Tente novamente.')
     } finally {
       setSalvando(false)
     }
