@@ -52,6 +52,7 @@ import { coletarParesUnicos, montarVinculosAutomaticos } from '@/services/vincul
 import {
   aplicarRegrasDesqualificacao,
   chaveRegraDesqualificacao,
+  chavesNaoVinculaEstoque,
   itensDocumento,
   novaRegraDesqualificacao,
 } from '@/services/desqualificacaoService'
@@ -900,9 +901,17 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Itens com par CNPJ+cProd desqualificado / "não vincular" / "não controla
     // estoque" não fazem parte da contagem física — o produto existe no
     // catálogo mas o estoque dele não é escriturado (Bloco H).
+    // O par (CNPJ fornecedor + cProd) de cada produto vem do de-para vigente:
+    // se QUALQUER vínculo do produto estiver numa regra de desqualificação,
+    // o produto sai da contagem.
     const chavesLiberadas = chavesNaoVinculaEstoque(store.regrasDesqualificacao)
     const produtosContaveis = store.produtos.filter(
-      (p) => !chavesLiberadas.has(chaveProduto(p.cnpjFornecedorOrigem, p.codigoFornecedor)),
+      (p) =>
+        !store.dePara.some(
+          (dp) =>
+            dp.codigoInventario === p.codigoInventario &&
+            chavesLiberadas.has(chaveRegraDesqualificacao(dp.cnpjFornecedor, dp.cProd)),
+        ),
     )
     return calcularItensInventario(produtosContaveis, store.kardex)
   }
