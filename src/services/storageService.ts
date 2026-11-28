@@ -1,44 +1,35 @@
 /**
- * Acesso bruto ao armazenamento — agora VIA bancoService (cache + PocketBase).
+ * Acesso bruto ao armazenamento — VIA bancoService (cache + PocketBase).
  * Mantém a API síncrona que SigefContext e as telas já usam; o banco é
  * sincronizado em segundo plano (hidratar + fila de gravação).
+ *
+ * Blindagem anti-crash (rota /login aninhada nos providers): NENHUMA leitura
+ * pode propagar null/undefined/lixo — toda lista ausente ou corrompida vira [].
  */
-import { lerRaw, gravarRaw, removerChave, hidratar } from './bancoService'
+import type { BackupHistorico, DadosEmpresaStore, Empresa } from '@/types/sigef'
+import { lerRaw, gravarRaw, hidratar } from './bancoService'
 
-export interface DadosEmpresaStore {
-  produtos?: unknown[]
-  deParaVigente?: unknown[]
-  documentos?: unknown[]
-  movimentacoes?: unknown[]
-  fechamentos?: unknown[]
-  contagens?: unknown[]
-  contagensProdutos?: unknown[]
-  ocorrencias?: unknown[]
-  desqualificadas?: unknown[]
-  naoVinculaEstoque?: unknown[]
-  consultasDfe?: unknown[]
-  [k: string]: unknown
-}
+export type { DadosEmpresaStore }
 
 const prefixoStore = (idEmpresa: string) => `sigef_store_empresa_${idEmpresa}`
 const CHAVE_EMPRESAS = 'sigef_empresas_lista'
 const CHAVE_ID_ATIVA = 'sigef_empresa_ativa_id'
 export const MARCADOR_XML_COMPACTADO = 'sigef:xml-compactado:'
 
-function carregarEmpresasBrutas(): unknown[] {
-  const raw = lerRaw(CHAVE_EMPRESAS)
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    console.error('[SIGEF] lista de empresas corrompida; ignorada')
-    return []
+/** Store vazia na forma completa (mesma estrutura de criarStoreVazia). */
+export function storeVazia(empresa?: Empresa): DadosEmpresaStore {
+  return {
+    empresa,
+    produtos: [],
+    dePara: [],
+    documentos: [],
+    kardex: [],
+    fechamentos: [],
+    ocorrencias: [],
+    consultasDFe: [],
+    ultimoNSU: 0,
+    regrasDesqualificacao: [],
   }
-}
-
-export function carregarEmpresasCadastradas(): EmpresaLike[] {
-  return carregarEmpresasBrutas().filter((e): e is EmpresaLike => !!e && typeof e === 'object')
 }
 
 export interface EmpresaLike {
@@ -49,15 +40,40 @@ export interface EmpresaLike {
   [k: string]: unknown
 }
 
-export function salvarEmpresasCadastradas(empresas: EmpresaLike[]): void {
-  gravarRaw(CHAVE_EMPRESAS, JSON.stringify(empresas))
+/** Aceita id (string) ou o objeto empresa — o contexto chama das duas formas. */
+function idDaEmpresa(empresa: string | EmpresaLike | null | undefined): string {
+  if (typeof empresa === 'string') return empresa
+  if (empresa && typeof empresa === 'object' && typeof empresa.id === 'string') return empresa.id
+  return ''
 }
 
-export function carregarIdEmpresaAtiva(): string | null {
+function carregarEmpresasBrutas(): unknown[] {
+  const raw = lerRaw(CHAVE_EMPRESAS)
+  if (!raw) return []
   try {
-    return localStorage.getItem(CHAVE_ID_ATIVA)
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
   } catch {
-    return null
+    console.error('[SIGEF] lista de empresas corrompida; ignorada')
+    return []
+  }
+}
+
+export function carregarEmpresasCadastradas(): Empresa[] {
+  return carregarEmpresasBrutas().filter(
+    (e): e is Empresa => !!e && typeof e === 'object' && typeof (e as Empresa).id === 'string',
+  )
+}
+
+export function salvarEmpresasCadastradas(empresas: Empresa[]): void {
+  gravarRaw(CHAVE_EMPRESAS, JSON.stringify(Array.isArray(empresas) ? empresas : []))
+}
+
+export function carregarIdEmpresaAtiva(): string {
+  try {
+    return localStorage.getItem(CHAVE_ID_ATIVA) ?? ''
+  } catch {
+    return ''
   }
 }
 
@@ -69,59 +85,62 @@ export function salvarIdEmpresaAtiva(id: string): void {
   }
 }
 
-export function carregarDadosEmpresa(idEmpresa: string): DadosEmpresaStore {
-  const raw = lerRaw(prefixoStore(idEmpresa))
-  if (!raw) return {}
+/**
+ * Lê a store da empresa. Aceita string (id) ou o objeto Empresa. Nunca lança
+ * e nunca devolve estrutura incompleta: toda lista ausente/corrompida vira [].
+ */
+export function carregarDadosEmpresa(
+  empresa: string | EmpresaLike | null | undefined,
+): DadosEmpresaStore {
+  const id = idDaEmpresa(empresa)
+  const raw = id ? lerRaw(prefixoStore(id)) : null
+  if (!raw) return storeVazia()
+  let parsed: unknown
   try {
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    // Blindagem anti-crash: arrays ausentes/corrompidos viram []; documentos
-    // null nunca propagam (causa histórica da tela de erro no /login).
-    const loja = parsed as DadosEmpresaStore
-    if (loja.documentos !== undefined) {
-      if (!Array.isArray(loja.documentos)) {
-        loja.documentos = []
-      } else {
-        loja.documentos = loja.documentos.filter((d) => d && typeof d === 'object')
-      }
-    }
-    for (const campo of [
-      'produtos',
-      'deParaVigente',
-      'movimentacoes',
-      'fechamentos',
-      'contagens',
-      'contagensProdutos',
-      'ocorrencias',
-      'desqualificadas',
-      'naoVinculaEstoque',
-      'consultasDfe',
-    ] as const) {
-      if (loja[campo] !== undefined && !Array.isArray(loja[campo])) {
-        ;(loja as Record<string, unknown>)[campo] = []
-      }
-    }
-    return loja
+    parsed = JSON.parse(raw)
   } catch {
     console.error('[SIGEF] store da empresa corrompida; iniciando vazia')
-    return {}
+    return storeVazia()
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return storeVazia()
+  const loja = parsed as Partial<DadosEmpresaStore> & Record<string, unknown>
+  const base = storeVazia(loja.empresa)
+  return {
+    ...base,
+    ...loja,
+    empresa: loja.empresa ?? base.empresa,
+    produtos: Array.isArray(loja.produtos) ? loja.produtos : [],
+    dePara: Array.isArray(loja.dePara) ? loja.dePara : [],
+    // documentos null/lixo nunca propagam (causa histórica do crash no /login)
+    documentos: Array.isArray(loja.documentos)
+      ? loja.documentos.filter((d) => d && typeof d === 'object')
+      : [],
+    kardex: Array.isArray(loja.kardex) ? loja.kardex : [],
+    fechamentos: Array.isArray(loja.fechamentos) ? loja.fechamentos : [],
+    ocorrencias: Array.isArray(loja.ocorrencias) ? loja.ocorrencias : [],
+    consultasDFe: Array.isArray(loja.consultasDFe) ? loja.consultasDFe : [],
+    ultimoNSU: typeof loja.ultimoNSU === 'number' ? loja.ultimoNSU : 0,
+    competenciaAtiva: loja.competenciaAtiva || undefined,
+    regrasDesqualificacao: Array.isArray(loja.regrasDesqualificacao)
+      ? loja.regrasDesqualificacao
+      : [],
   }
 }
 
-export function salvarDadosEmpresa(idEmpresa: string, dados: DadosEmpresaStore): void {
-  gravarRaw(prefixoStore(idEmpresa), JSON.stringify(dados))
+/** Gravação flexível: salvarDadosEmpresa(dados) na empresa ativa, ou (id, dados). */
+export function salvarDadosEmpresa(a: DadosEmpresaStore | string, b?: DadosEmpresaStore): void {
+  const id = typeof a === 'string' ? a : carregarIdEmpresaAtiva()
+  const dados = typeof a === 'string' ? b : a
+  if (!id || !dados || typeof dados !== 'object') return
+  gravarRaw(prefixoStore(id), JSON.stringify(dados))
 }
 
-export function carregarHistoricoBackups(): Array<{
-  id: string
-  criadoEm: string
-  empresaId: string
-}> {
+export function carregarHistoricoBackups(): BackupHistorico[] {
   const raw = lerRaw('sigef-backups')
   if (!raw) return []
   try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as BackupHistorico[]) : []
   } catch {
     return []
   }
@@ -129,7 +148,7 @@ export function carregarHistoricoBackups(): Array<{
 
 export function registrarBackup(empresaId: string, backup: { id: string; criadoEm: string }): void {
   const historico = carregarHistoricoBackups().filter((b) => b?.empresaId === empresaId)
-  historico.unshift({ ...backup, empresaId })
+  historico.unshift({ ...backup, empresaId } as BackupHistorico)
   gravarRaw('sigef-backups', JSON.stringify(historico.slice(0, 20)))
 }
 
