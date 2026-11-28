@@ -11,14 +11,7 @@
 // cadastros) que apontam para o mesmo código somam as movimentações numa única
 // linha (caso VB0076 "Sucata de Metal" + "SUCATA DE LATÃO").
 
-import type {
-  DeParaVigente,
-  DocumentoFiscal,
-  ItemContagemInventario,
-  MovimentoKardex,
-  Produto,
-} from '@/types/sigef'
-import { buscarDePara } from './kardexEngine'
+import type { ItemContagemInventario, MovimentoKardex } from '@/types/sigef'
 
 export interface LinhaSaldoInventario {
   codigoInventario: string

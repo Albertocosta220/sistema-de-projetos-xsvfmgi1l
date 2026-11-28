@@ -142,6 +142,34 @@ body {
   font-feature-settings: 'tnum' 1;
 }
 
+/* ---- Tipografia padrão do sistema ----
+   Escala ÚNICA para todas as abas e páginas (pedido do usuário: "todas as
+   abas e páginas iguais o tamanho das fontes e textos"): componentes shell e
+   telas compartilham os mesmos tamanhos via variáveis — nada de text-[9px],
+   text-[10px]... avulsos espalhados. */
+:root {
+  --fs-body: 13.5px; /* texto de página, tabelas e formulários */
+  --fs-small: 12px; /* legendas, hints e descrições */
+  --fs-mini: 11px; /* cabeçalhos de tabela e badges */
+  --fs-titulo: 18px; /* títulos de cartão/seção fora do shell */
+  --fs-mono: 11.5px; /* código monoespaçado (XML, SPED, chaves) */
+}
+main p,
+main li,
+main td,
+main th[scope='row'],
+main label,
+main input,
+main select,
+main textarea {
+  font-size: var(--fs-body);
+}
+main small,
+main .sub,
+main .text-muted {
+  font-size: var(--fs-small);
+}
+
 sigef-shell,
 .app-shell {
   min-height: 100dvh;
@@ -314,21 +342,29 @@ sigef-shell,
   padding: 12px 14px;
 }
 .kpi-b .kpi-label {
-  font-size: 10.5px;
+  display: block;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--sig-muted);
+  margin-bottom: 2px;
 }
 .kpi-b .kpi-value {
-  font-size: clamp(20px, 2.2vw, 26px);
+  display: block;
+  /* Tamanho fixo (sem clamp/vw): um valor grande nunca invade a linha do hint */
+  font-size: 22px;
   font-weight: 750;
   color: var(--petroleo);
-  line-height: 1.15;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .kpi-b .kpi-hint {
-  font-size: 11.5px;
+  display: block;
+  font-size: 12px;
   color: var(--sig-muted);
+  line-height: 1.35;
+  margin-top: 2px;
 }
 .kpi-b.tone-accent {
   border-top: 3px solid var(--accent);
@@ -343,13 +379,32 @@ sigef-shell,
   border-top: 3px solid var(--vermelho);
 }
 
-/* ---- Tabelas shell ---- */
+/* ---- Tabelas shell ----
+   Tamanho único de tabela em todas as abas (texto na escala --fs-body,
+   cabeçalhos em --fs-mini): estilos utilitários avulsos não mudam mais o
+   corpo das tabelas de dados. */
 main table {
-  font-size: 13px;
+  font-size: var(--fs-body);
+}
+main table.text-xs,
+main table.text-sm {
+  font-size: var(--fs-body);
+}
+main table .text-xs,
+main table .text-sm,
+main table .text-\[11px\] {
+  font-size: var(--fs-body) !important;
+}
+main table [class*='text-[9px]'],
+main table [class*='text-[10px]'],
+main table [class*='text-[11px]'],
+main table [class*='text-[12px]'],
+main table [class*='text-[13px]'] {
+  font-size: var(--fs-body) !important;
 }
 main thead th {
   text-align: left;
-  font-size: 11px;
+  font-size: var(--fs-mini);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--sig-muted);
@@ -449,6 +504,36 @@ main .hover\:bg-rose-800:hover {
 main .text-rose-700,
 main .text-rose-600 {
   color: var(--vermelho) !important;
+}
+
+/* ---- Escala tipográfica única em todo o conteúdo ----
+   Utilitários avulsos (text-[9px]…text-[13px], text-xs, text-sm) são
+   normalizados para a escala --fs-body/--fs-small: todas as abas e páginas
+   ficam com o mesmo tamanho de fonte e texto (pedido do usuário).
+   Exceções: código monoespaçado (chaves de acesso, XML/SPED) usa --fs-mono. */
+main [class*='text-[9px]'],
+main [class*='text-[10px]'],
+main [class*='text-[11px]'],
+main [class*='text-[12px]'],
+main [class*='text-[13px]'] {
+  font-size: var(--fs-body) !important;
+}
+main .text-xs,
+main .text-sm {
+  font-size: var(--fs-body);
+}
+main .text-xl,
+main .text-2xl {
+  font-size: var(--fs-titulo);
+}
+main .font-mono[class*='text-['],
+main pre.font-mono,
+main pre {
+  font-size: var(--fs-mono);
+}
+main .badge-pill,
+.badge-pill {
+  font-size: var(--fs-mini);
 }
 main [data-slot='button'],
 main button.shadow-xs {

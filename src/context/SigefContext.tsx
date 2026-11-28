@@ -128,6 +128,8 @@ interface SigefContextType {
 
   // Ações de Inventário e Fechamento
   gerarContagemCompetencia: (competencia: string) => ItemContagemInventario[]
+  /** Inventário Negativo: contagem + todo código movimentado no Kardex (saldo pode negativo). */
+  gerarItensInventarioNegativo: (competencia: string) => ItemContagemInventario[]
   salvarAjusteContagem: (
     competencia: string,
     codigoInventario: string,
@@ -979,12 +981,23 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .map((k) => k.codigoInventario),
     )
     if (codigosExtras.size === 0) return itens
-    const produtosExtras = Array.from(codigosExtras).map((cod) => ({
-      codigoInventario: cod,
-      descricao: cod,
-      unidade: '',
-    }))
-    return [...itens, ...calcularItensInventario(produtosExtras, store.kardex)]
+    const itensExtras = Array.from(codigosExtras).map((cod) => {
+      const movsCod = store.kardex.filter((k) => k.codigoInventario === cod)
+      const ultimo = movsCod[movsCod.length - 1]
+      return {
+        codigoInventario: cod,
+        descricao: cod,
+        unidade: '',
+        quantidadeSistema: ultimo ? ultimo.saldoQuantidade : 0,
+        custoMedioSistema: ultimo ? ultimo.custoMedioUnitario : 0,
+        valorTotalSistema: ultimo ? ultimo.saldoValorTotal : 0,
+        quantidadeContada: 0,
+        diferencaQuantidade: 0,
+        diferencaValor: 0,
+        statusAjuste: 'SEM_DIVERGENCIA' as const,
+      }
+    })
+    return [...itens, ...itensExtras]
   }
 
   const salvarAjusteContagem = (

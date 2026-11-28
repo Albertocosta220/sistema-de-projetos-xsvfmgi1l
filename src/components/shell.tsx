@@ -67,10 +67,10 @@ export function KpiB({
   tone?: 'accent' | 'verde' | 'ambar' | 'vermelho'
 }) {
   return (
-    <div className={`kpi-b tone-${tone}`}>
+    <div className={`kpi-b tone-${tone} flex flex-col items-start gap-1`}>
       <span className="kpi-label">{label}</span>
-      <span className="kpi-value">{value}</span>
-      {hint ? <span className="kpi-hint">{hint}</span> : null}
+      <span className="kpi-value block">{value}</span>
+      {hint ? <span className="kpi-hint block">{hint}</span> : null}
     </div>
   )
 }
