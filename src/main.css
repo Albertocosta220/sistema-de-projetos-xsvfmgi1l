@@ -1,7 +1,7 @@
 /* Global styles - Theme, font, utilities, animations and global components */
 
-/* CHANGE THE FONT BELOW TO WHATEVER YOU WANT */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+/* Tipografia Inter (Bento Grid Minimalista) — mantém a escala --fs-* */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -9,36 +9,38 @@
 
 @layer base {
   :root {
-    /* Change the colors to match the design system */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Paleta "Bento Grid Minimalista" (pedido do usuário):
+       fundo #F8FAFC, cartões #FFFFFF, borda #E2E8F0, ação #2563EB (hover
+       #1D4ED8), texto #0F172A / secundário #475569, pills #EFF6FF/#2563EB */
+    --background: 210 40% 98%; /* #F8FAFC */
+    --foreground: 222.2 47.4% 11.2%; /* #0F172A */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 222.2 47.4% 11.2%; /* #0F172A */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222.2 47.4% 11.2%;
 
-    --primary: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%; /* #2563EB */
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 98%;
-    --secondary-foreground: 222.2 84% 4.9%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 210 40% 98%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%; /* #475569 */
 
-    --accent: 210 40% 98%;
-    --accent-foreground: 222.2 84% 4.9%;
+    --accent: 214.3 94.6% 92.7%; /* #EFF6FF — fundo das pills/destaques */
+    --accent-foreground: 221.2 83.2% 53.3%; /* #2563EB */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
+    --border: 214.3 31.8% 91.4%; /* #E2E8F0 */
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 221.2 83.2% 53.3%; /* #2563EB */
 
-    --radius: 0.5rem;
+    --radius: 20px; /* cantos arredondados grandes dos cartões bento */
 
     --sidebar-background: 0 0% 98%;
 
@@ -56,11 +58,11 @@
 
     --sidebar-ring: 222.2 84% 4.9%;
 
-    --chart-1: 34 100% 44%;
-    --chart-2: 189 100% 38%;
-    --chart-3: 209 100% 32%;
-    --chart-4: 42 100% 50%;
-    --chart-5: 33 100% 50%;
+    --chart-1: 221.2 83.2% 53.3%;
+    --chart-2: 160.4 84.1% 39.4%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 346.8 77.2% 49.8%;
+    --chart-5: 262 83% 58%;
   }
 
   .dark {
@@ -116,29 +118,39 @@
 }
 
 /* ============================================================
-   SIGEF-ME v2.0 — Shell de design (réplica do sistema anexo)
-   Tokens: accent teal #0E7C86, petróleo, âmbar, vermelho, verde
+   SIGEF-ME — Shell de design "Bento Grid Minimalista"
+   Fundo #F8FAFC · cartões #FFFFFF · borda #E2E8F0 · ação #2563EB
+   (hover #1D4ED8) · texto #0F172A / #475569 · pills #EFF6FF/#2563EB
    ============================================================ */
 :root {
-  --accent: #0e7c86;
-  --accent-text: #0a5f67;
-  --accent-soft: #e6f2f3;
+  --accent: #2563eb;
+  --accent-text: #1d4ed8;
+  --accent-soft: #eff6ff;
   --accent-contrast: #ffffff;
-  --petroleo: #123b57;
+  --petroleo: #0f172a; /* texto principal (ex-teal petróleo) */
   --ambar: #b45309;
   --vermelho: #b42318;
   --verde: #067647;
-  --sig-border: #dbe4ea;
-  --sig-muted: #5b6b78;
+  --sig-border: #e2e8f0;
+  --sig-muted: #475569;
   --sig-surface: #ffffff;
-  --sig-bg: #f4f7f9;
-  --sig-radius: 10px;
-  --sig-shadow: 0 1px 2px rgba(18, 59, 87, 0.06), 0 4px 12px rgba(18, 59, 87, 0.05);
+  --sig-bg: #f8fafc;
+  --sig-radius: 20px;
+  --sig-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 18px rgba(15, 23, 42, 0.06);
+  --sig-shadow-hover: 0 10px 28px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.06);
+  color-scheme: light;
 }
 
 body {
   background: var(--sig-bg);
   color: var(--petroleo);
+  font-family:
+    'Inter',
+    'Inter var',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
   font-feature-settings: 'tnum' 1;
 }
 
@@ -179,8 +191,8 @@ sigef-shell,
 
 /* ---- Sidebar ---- */
 .sig-sidebar {
-  background: var(--petroleo);
-  color: #dce8f0;
+  background: #0f172a;
+  color: #cbd5e1;
   padding: 14px 10px 20px;
   display: flex;
   flex-direction: column;
@@ -205,14 +217,14 @@ sigef-shell,
 }
 .sig-brand span {
   font-size: 10.5px;
-  color: #9fb8c8;
+  color: #94a3b8;
   display: block;
 }
 .sig-sidebar h4 {
   font-size: 10.5px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: #8fb0c2;
+  color: #64748b;
   margin: 12px 8px 4px;
   font-weight: 700;
 }
@@ -224,7 +236,7 @@ sigef-shell,
   padding: 7px 10px;
   border-radius: 8px;
   font-size: 13px;
-  color: #d7e4ec;
+  color: #cbd5e1;
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
@@ -237,11 +249,11 @@ sigef-shell,
   opacity: 0.85;
 }
 .sig-nav:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--accent-soft);
+  color: #bfdbfe;
 }
 .sig-nav:focus-visible {
-  outline: 2px solid #7fd4dc;
+  outline: 2px solid #93c5fd;
   outline-offset: 1px;
 }
 .sig-nav[aria-current='page'] {
@@ -287,9 +299,9 @@ sigef-shell,
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--accent-text);
+  color: var(--accent);
   background: var(--accent-soft);
-  border: 1px solid #bfe0e3;
+  border: 1px solid #bfdbfe;
   border-radius: 999px;
   padding: 3px 10px;
   margin-bottom: 8px;
@@ -313,7 +325,16 @@ sigef-shell,
   border: 1px solid var(--sig-border);
   border-radius: var(--sig-radius);
   box-shadow: var(--sig-shadow);
-  padding: 16px;
+  padding: 20px;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card-s:hover {
+    box-shadow: var(--sig-shadow-hover);
+    transform: translateY(-2px);
+  }
 }
 .card-s + .card-s {
   margin-top: 14px;
@@ -339,7 +360,16 @@ sigef-shell,
   border: 1px solid var(--sig-border);
   border-radius: var(--sig-radius);
   box-shadow: var(--sig-shadow);
-  padding: 12px 14px;
+  padding: 16px 18px;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .kpi-b:hover {
+    box-shadow: var(--sig-shadow-hover);
+    transform: translateY(-2px);
+  }
 }
 .kpi-b .kpi-label {
   display: block;
@@ -411,15 +441,15 @@ main thead th {
   font-weight: 700;
   border-bottom: 1px solid var(--sig-border);
   padding: 8px 10px;
-  background: #f8fafb;
+  background: #f8fafc;
 }
 main tbody td {
-  border-bottom: 1px solid #eef2f5;
+  border-bottom: 1px solid #f1f5f9;
   padding: 8px 10px;
   vertical-align: top;
 }
 main tbody tr:hover td {
-  background: #f6fafb;
+  background: #f8fafc;
 }
 
 /* ---- Badges em pílula ---- */
@@ -436,36 +466,148 @@ main tbody tr:hover td {
 }
 .badge-pill.t-accent {
   background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: #bfe0e3;
+  color: var(--accent);
+  border-color: #bfdbfe;
 }
 .badge-pill.t-verde {
-  background: #e7f4ec;
+  background: #ecfdf5;
   color: var(--verde);
-  border-color: #bfdfcd;
+  border-color: #a7f3d0;
 }
 .badge-pill.t-ambar {
-  background: #fdf1e3;
+  background: #fffbeb;
   color: var(--ambar);
-  border-color: #f0d6b8;
+  border-color: #fde68a;
 }
 .badge-pill.t-vermelho {
-  background: #fdeceb;
+  background: #fef2f2;
   color: var(--vermelho);
-  border-color: #f2c6c1;
+  border-color: #fecaca;
 }
 .badge-pill.t-petroleo {
-  background: #e8eff5;
+  background: #f8fafc;
   color: var(--petroleo);
-  border-color: #c9d9e4;
+  border-color: var(--sig-border);
 }
 .badge-pill.t-muted {
-  background: #f1f4f6;
+  background: #f8fafc;
   color: var(--sig-muted);
   border-color: var(--sig-border);
 }
 
-/* ---- Botões ---- */
+/* ---- Botões e shadcn ui na paleta Bento ----
+   O tema shadcn (bg-primary etc.) herda as novas variáveis --primary/--accent;
+   os overrides abaixo cobrem classes azul/teal antigas espalhadas nas telas. */
+main .bg-primary {
+  background-color: var(--accent) !important;
+}
+main button[data-slot='button'],
+main [data-slot='button'] {
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  main [data-slot='button']:hover {
+    transform: translateY(-1px);
+  }
+}
+main [data-slot='select-trigger'],
+main [data-slot='dialog-content'],
+main [data-slot='card'] {
+  border-radius: var(--sig-radius);
+}
+main [data-slot='badge'] {
+  border-radius: 999px;
+}
+main [data-slot='badge'].bg-primary {
+  background-color: var(--accent) !important;
+  color: #ffffff !important;
+}
+main [data-slot='badge'][class*='bg-emerald-'],
+main [data-slot='badge'][class*='bg-green-'] {
+  background-color: #ecfdf5 !important;
+  color: var(--verde) !important;
+  border-color: #a7f3d0 !important;
+}
+main [data-slot='badge'][class*='bg-amber-'] {
+  background-color: #fffbeb !important;
+  color: var(--ambar) !important;
+  border-color: #fde68a !important;
+}
+main [data-slot='badge'][class*='bg-rose-'],
+main [data-slot='badge'][class*='bg-red-'] {
+  background-color: #fef2f2 !important;
+  color: var(--vermelho) !important;
+  border-color: #fecaca !important;
+}
+main [data-slot='badge'].bg-slate-100,
+main [data-slot='badge'].bg-slate-50 {
+  background-color: #f8fafc !important;
+  color: var(--sig-muted) !important;
+  border-color: var(--sig-border) !important;
+}
+main [data-slot='badge'][class*='bg-blue-'],
+main [data-slot='badge'][class*='bg-indigo-'] {
+  background-color: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: #bfdbfe !important;
+}
+main [data-slot='badge'][class*='bg-teal-'] {
+  background-color: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: #bfdbfe !important;
+}
+main .text-teal-800,
+main .text-teal-700,
+main .text-teal-600 {
+  color: var(--accent) !important;
+}
+main .border-teal-300,
+main .border-teal-200,
+main .border-teal-600 {
+  border-color: #bfdbfe !important;
+}
+main [class*='bg-teal-'] {
+  background-color: var(--accent-soft) !important;
+}
+/* Botões sólidos teal varam para o azul de ação (texto branco precisa contraste) */
+main .bg-teal-700,
+main .bg-teal-800 {
+  background-color: var(--accent) !important;
+}
+main .hover\:bg-teal-800:hover,
+main .hover\:bg-teal-700:hover {
+  background-color: var(--accent-text) !important;
+}
+main .bg-\[\#0E7C86\],
+main .hover\:bg-\[\#0B636B\]:hover {
+  background-color: var(--accent) !important;
+}
+main .hover\:bg-\[\#0B636B\]:hover {
+  background-color: var(--accent-text) !important;
+}
+main .text-blue-800,
+main .text-blue-700 {
+  color: var(--accent) !important;
+}
+main .text-blue-600 {
+  color: var(--accent) !important;
+}
+main [class*='bg-blue-100'],
+main [class*='bg-blue-50'] {
+  background-color: var(--accent-soft) !important;
+}
+main [class*='bg-blue-600\/80'],
+main [class*='bg-blue-600'] {
+  background-color: var(--accent) !important;
+}
+main .bg-\[\#0E7C86\] {
+  background-color: var(--accent) !important;
+}
+main .hover\:bg-primary\/90:hover {
+  background-color: var(--accent-text) !important;
+}
 main .bg-blue-700,
 main .bg-blue-800 {
   background-color: var(--accent) !important;
@@ -540,20 +682,36 @@ main button.shadow-xs {
   border-radius: 8px;
 }
 
+/* ---- Cartão escuro de destaque (bento) ---- */
+.card-destaque {
+  background: #0f172a;
+  color: #f1f5f9;
+  border: 1px solid #0f172a;
+  border-radius: var(--sig-radius);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.35);
+  padding: 20px;
+}
+.card-destaque h2 {
+  color: #f8fafc;
+}
+.card-destaque .sub {
+  color: #94a3b8;
+}
+
 /* ---- Tab bar ---- */
 .tab-bar {
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  border-radius: 10px;
-  background: #eef2f5;
+  border-radius: 999px;
+  background: #ffffff;
   border: 1px solid var(--sig-border);
   overflow-x: auto;
   max-width: 100%;
 }
 .tab-bar [role='tab'] {
   padding: 6px 14px;
-  border-radius: 7px;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   color: var(--sig-muted);
@@ -564,6 +722,7 @@ main button.shadow-xs {
 }
 .tab-bar [role='tab']:hover {
   color: var(--petroleo);
+  background: var(--accent-soft);
 }
 .tab-bar [role='tab']:focus-visible {
   outline: 2px solid var(--accent);
@@ -572,7 +731,7 @@ main button.shadow-xs {
 .tab-bar [role='tab'][aria-selected='true'] {
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 1px 2px rgba(14, 124, 134, 0.4);
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.4);
 }
 
 /* ---- Campos ---- */
@@ -613,35 +772,35 @@ main button.shadow-xs {
   border-color: var(--accent);
 }
 
-/* ---- Login (tema #0E7C86) ---- */
+/* ---- Login (paleta Bento #2563EB sobre #0F172A) ---- */
 .login-bg {
   background:
-    radial-gradient(1100px 520px at 85% -10%, rgba(14, 124, 134, 0.35), transparent 60%),
-    radial-gradient(900px 480px at -10% 110%, rgba(10, 95, 103, 0.5), transparent 55%),
-    linear-gradient(160deg, #0b5f67 0%, #0e7c86 45%, #123b57 100%);
+    radial-gradient(1100px 520px at 85% -10%, rgba(37, 99, 235, 0.35), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(29, 78, 216, 0.5), transparent 55%),
+    linear-gradient(160deg, #0f172a 0%, #1e3a8a 55%, #0f172a 100%);
   color: #ffffff;
 }
 .login-card {
   background: var(--sig-surface, #ffffff);
   /* Reset da cor herdada de .login-bg (#fff): sem isso o texto digitado nos
      inputs (e o caret) fica branco sobre o cartão branco — "não digita". */
-  color: var(--petroleo, #123b57);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 16px;
-  box-shadow: 0 18px 45px rgba(6, 40, 48, 0.35);
+  color: var(--petroleo, #0f172a);
+  border: 1px solid var(--sig-border, #e2e8f0);
+  border-radius: var(--sig-radius, 20px);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.35);
   padding: 28px 26px;
 }
 .login-card input {
-  color: var(--petroleo, #123b57);
-  caret-color: var(--petroleo, #123b57);
+  color: var(--petroleo, #0f172a);
+  caret-color: var(--petroleo, #0f172a);
 }
 
 /* ---- Código / SPED ---- */
 .codeblock {
-  background: #0f2733;
-  color: #9fe3d2;
+  background: #0f172a;
+  color: #bfdbfe;
   border-radius: var(--sig-radius);
-  border: 1px solid #0c2029;
+  border: 1px solid #1e293b;
   padding: 12px 14px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11.5px;
@@ -656,7 +815,7 @@ main button.shadow-xs {
   display: grid;
   gap: 8px;
   font-size: 13.5px;
-  color: #29465c;
+  color: var(--sig-muted);
 }
 .prose-step li::marker {
   color: var(--accent);
@@ -694,6 +853,15 @@ main button.shadow-xs {
 @media (prefers-reduced-motion: reduce) {
   .sig-sidebar {
     transition: none;
+  }
+  .card-s,
+  .kpi-b {
+    transition: none;
+  }
+  .card-s:hover,
+  .kpi-b:hover {
+    transform: none;
+    box-shadow: var(--sig-shadow);
   }
 }
 

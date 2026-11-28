@@ -91,7 +91,7 @@ export default function PainelPage() {
   return (
     <div className="space-y-6">
       {/* Cabeçalho da Empresa */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 card-s">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -157,25 +157,40 @@ export default function PainelPage() {
         </div>
       )}
 
-      {/* Métricas Principais (Cards) */}
+      {/* Métricas Principais — bento grid com cartão escuro de destaque */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-slate-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Valor Total do Estoque
-            </CardTitle>
-            <Coins className="size-4 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold text-slate-900">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                saldoTotalValor,
-              )}
+        <Card className="border-slate-200 sm:col-span-2 card-destaque">
+          <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
+            <div className="min-w-0">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Valor Total do Estoque
+              </CardTitle>
+              <div className="text-2xl font-extrabold text-white mt-1">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                  saldoTotalValor,
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                <TrendingUp className="size-3 text-blue-300" />
+                Custo Médio Ponderado (CMP) ativo
+              </p>
             </div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              <TrendingUp className="size-3 text-emerald-600" />
-              Custo Médio Ponderado (CMP) ativo
-            </p>
+            <Coins className="size-6 text-blue-300 shrink-0" />
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-2">
+            <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700">
+              <Link to="/importar">
+                <Upload className="size-4 mr-1.5" />
+                Importar NF-e
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              className="bg-white/10 text-white hover:bg-white/20 border border-white/20"
+            >
+              <Link to="/inventario">Fechar Competência</Link>
+            </Button>
           </CardContent>
         </Card>
 
