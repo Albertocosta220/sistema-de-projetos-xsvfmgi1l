@@ -100,7 +100,8 @@ interface SigefContextType {
     periodo?: { inicio: string; fim: string },
   ) => {
     importados: number
-    duplicados: number
+    /** Descartados na ENTRADA: chave já existente na escrituração (régua A01). */
+    descartados: number
     pendentesDePara: number
   }
   cancelarNFe: (docId: string, justificativa: string) => void
@@ -480,17 +481,60 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Importar XMLs em lote (colados ou pastas). O período informado na tela
   // (ex.: 01/11/2026 a 30/11/2026) define a competência ativa — persistida na
   // store e exibida no Painel (mês ativo), Kardex, Inventário e Bloco K.
+  //
+  // DEDUPLICAÇÃO NA ENTRADA (Regra A01): antes de enfileirar, cada XML é
+  // comparado pela chave de acesso com os documentos JÁ importados da empresa —
+  // e com o próprio lote. Chave já existente é descartada ANTES de tocar na
+  // store: o documento anterior (mesmo PROCESSADO/tratado) fica 100% intacto,
+  // nenhuma linha nova entra na fila e a ocorrência A01 registra a análise.
   const importarXmlsEmLote = (xmlStrings: string[], periodo?: { inicio: string; fim: string }) => {
     let importados = 0
-    let duplicados = 0
+
     let pendentesDePara = 0
 
+    // Chaves já escrituradas nesta empresa (documento existente = tratado, nunca sobrescrever)
+    const chavesExistentes = new Set(
+      store.documentos.filter((d) => d.chaveAcesso).map((d) => d.chaveAcesso),
+    )
+
     const novosDocs: DocumentoFiscal[] = []
+    const descartes: DocumentoFiscal[] = []
+    const chavesDoLote = new Set<string>()
+
     xmlStrings.forEach((xml) => {
       if (!xml || !xml.trim()) return
       const doc = parseNFeXml(xml, empresaAtiva.cnpj)
+      // Sem chave legível, não há como deduplicar: segue o fluxo antigo.
+      if (!doc.chaveAcesso) {
+        novosDocs.push(doc)
+        return
+      }
+      if (chavesExistentes.has(doc.chaveAcesso) || chavesDoLote.has(doc.chaveAcesso)) {
+        descartes.push(doc)
+        chavesDoLote.add(doc.chaveAcesso)
+        return
+      }
+      chavesDoLote.add(doc.chaveAcesso)
       novosDocs.push(doc)
     })
+
+    // Ocorrência A01 (Chave de Acesso em Duplicidade) pelo que foi descartado
+    // na entrada — com o resumo de cada arquivo ignorado. O documento já
+    // importado permanece exatamente como estava (nada é re-parseado nem
+    // sobrescrito) e a duplicata NUNCA entra na fila.
+    const ocorrenciasDuplicidade: OcorrenciaAuditoria[] = descartes.map((doc) => ({
+      id: `oco-a01-entrada-${doc.id}`,
+      regraCodigo: 'A01',
+      regraNome: 'Chave de Acesso em Duplicidade',
+      severidade: 'ERRO',
+      descricao: `XML descartado na importação: a chave de acesso ${doc.chaveAcesso} (NF-e nº ${doc.numero}, série ${doc.serie}, ${doc.nomeEmitente}, R$ ${doc.valorTotal.toFixed(2)}) já consta na escrituração desta empresa — o documento já importado e tratado foi preservado sem alterações.`,
+      baseLegal: REGUAS_AUDITORIA.find((r) => r.codigo === 'A01')?.baseLegal || '',
+      documentoRef: doc.numero,
+      chaveAcessoRef: doc.chaveAcesso,
+      dataIdentificacao: new Date().toISOString(),
+      resolvido: true,
+      podeReprocessar: false,
+    }))
 
     // O marcador XML_COMPACTADO_QUOTA no xmlOriginal significa "dados estruturados
     // íntegros, XML bruto descartado" — o documento já está completo no storage e
@@ -508,8 +552,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     resultado.documentosAtualizados.forEach((d) => {
       if (novosDocs.some((n) => n.id === d.id || n.chaveAcesso === d.chaveAcesso)) {
-        if (d.status === 'DUPLICIDADE') duplicados++
-        else if (d.status === 'AGUARDANDO_DE_PARA') pendentesDePara++
+        if (d.status === 'AGUARDANDO_DE_PARA') pendentesDePara++
         else importados++
       }
     })
@@ -517,11 +560,11 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     atualizarStore({
       documentos: resultado.documentosAtualizados,
       kardex: resultado.kardex,
-      ocorrencias: resultado.ocorrencias,
+      ocorrencias: [...ocorrenciasDuplicidade, ...resultado.ocorrencias],
       competenciaAtiva: competenciaDoPeriodo(periodo, resultado.documentosAtualizados),
     })
 
-    return { importados, duplicados, pendentesDePara }
+    return { importados, descartados: descartes.length, pendentesDePara }
   }
 
   // Cancelamento de NF-e com estorno e recálculo

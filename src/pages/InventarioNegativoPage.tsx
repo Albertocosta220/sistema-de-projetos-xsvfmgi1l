@@ -36,6 +36,10 @@ export default function InventarioNegativoPage() {
   }
 
   const totalItens = resumo.positivo.quantidadeItens + resumo.negativo.quantidadeItens
+  // Conferência do card: entradas − saídas deve bater com o líquido (a soma é
+  // feita produto a produto, então diferença aqui indica dado inconsistente).
+  const conferenciaLiquida =
+    resumo.totalValorEntradas - resumo.totalValorSaidas - resumo.valorTotalLiquido
 
   return (
     <div className="sig-page">
@@ -49,27 +53,31 @@ export default function InventarioNegativoPage() {
       {/* Cards de totais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiB
-          label="Saldo positivo"
-          value={`${resumo.positivo.quantidadeItens} itens`}
-          hint={brl(resumo.positivo.valorTotal)}
+          label="Total de entradas"
+          value={brl(resumo.totalValorEntradas)}
+          hint={`${num(resumo.totalQuantidadeEntradas)} un. somadas — todas as notas`}
           tone="verde"
         />
         <KpiB
-          label="Saldo negativo"
-          value={`${resumo.negativo.quantidadeItens} itens`}
-          hint={brl(resumo.negativo.valorTotal)}
+          label="Total de saídas"
+          value={brl(resumo.totalValorSaidas)}
+          hint={`${num(resumo.totalQuantidadeSaidas)} un. somadas — todas as notas`}
           tone="vermelho"
         />
         <KpiB
-          label="Total líquido do inventário"
+          label="Total líquido (entradas − saídas)"
           value={brl(resumo.valorTotalLiquido)}
-          hint={`${totalItens} itens com saldo, ${resumo.quantidadeZerados} zerados`}
+          hint={`${totalItens} itens com saldo, ${resumo.quantidadeZerados} zerados${
+            Math.abs(conferenciaLiquida) > 0.01
+              ? ` — verificar: diferença de ${brl(conferenciaLiquida)}`
+              : ''
+          }`}
           tone="accent"
         />
         <KpiB
           label="Competência"
           value={competenciaAtiva}
-          hint="Saldo calculado até o último dia do mês"
+          hint="Somas até o último dia do mês — o saldo pode ficar negativo"
           tone="ambar"
         />
       </div>
@@ -139,6 +147,18 @@ function GrupoTabela({ titulo, sub, grupo, tipo, expandidos, onAlternar }: Grupo
                   Un.
                 </th>
                 <th scope="col" className="py-2 pr-3 text-right">
+                  Entradas qtd
+                </th>
+                <th scope="col" className="py-2 pr-3 text-right">
+                  Entradas valor
+                </th>
+                <th scope="col" className="py-2 pr-3 text-right">
+                  Saídas qtd
+                </th>
+                <th scope="col" className="py-2 pr-3 text-right">
+                  Saídas valor
+                </th>
+                <th scope="col" className="py-2 pr-3 text-right">
                   Saldo qtd
                 </th>
                 <th scope="col" className="py-2 pr-3 text-right">
@@ -198,6 +218,18 @@ function LinhaProduto({
         <td className="py-2 pr-3 font-mono font-bold">{linha.codigoInventario}</td>
         <td className="py-2 pr-3">{linha.descricao}</td>
         <td className="py-2 pr-3">{linha.unidade}</td>
+        <td className="py-2 pr-3 text-right font-mono text-emerald-700">
+          {num(linha.totalQuantidadeEntradas)}
+        </td>
+        <td className="py-2 pr-3 text-right font-mono text-emerald-700">
+          {brl(linha.totalValorEntradas)}
+        </td>
+        <td className="py-2 pr-3 text-right font-mono text-rose-700">
+          {num(linha.totalQuantidadeSaidas)}
+        </td>
+        <td className="py-2 pr-3 text-right font-mono text-rose-700">
+          {brl(linha.totalValorSaidas)}
+        </td>
         <td className={`py-2 pr-3 text-right font-mono font-bold ${corSaldo}`}>
           {num(linha.saldoQuantidade)}
         </td>
@@ -208,7 +240,7 @@ function LinhaProduto({
       </tr>
       {aberta && (
         <tr id={idExtrato}>
-          <td colSpan={7} className="bg-[var(--sig-bg-sub,#f8fafc)] p-3">
+          <td colSpan={10} className="bg-[var(--sig-bg-sub,#f8fafc)] p-3">
             <ExtratoNotaANota linha={linha} />
           </td>
         </tr>
@@ -292,6 +324,27 @@ function ExtratoNotaANota({ linha }: { linha: LinhaSaldoInventario }) {
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-[var(--sig-line,#e2e8f0)] font-bold">
+            <td className="py-1 pr-3" colSpan={3}>
+              Totais somados (entradas − saídas = saldo)
+            </td>
+            <td className="py-1 pr-3 text-right font-mono text-emerald-700">
+              {num(linha.totalQuantidadeEntradas)}
+            </td>
+            <td className="py-1 pr-3 text-right font-mono text-emerald-700">
+              {brl(linha.totalValorEntradas)}
+            </td>
+            <td className="py-1 pr-3 text-right font-mono text-rose-700">
+              {num(linha.totalQuantidadeSaidas)}
+            </td>
+            <td className="py-1 pr-3 text-right font-mono text-rose-700">
+              {brl(linha.totalValorSaidas)}
+            </td>
+            <td className="py-1 pr-3 text-right font-mono">{num(linha.saldoQuantidade)}</td>
+            <td className="py-1 text-right font-mono">{brl(linha.saldoValor)}</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   )

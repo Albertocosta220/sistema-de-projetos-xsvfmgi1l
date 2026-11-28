@@ -133,8 +133,21 @@ export default function ImportarPage() {
         inicio: periodoInicio,
         fim: periodoFim,
       })
+      // Deduplicação na entrada: chaves já importadas são descartadas ANTES de
+      // enfileirar — o documento tratado fica intacto e nada novo entra na fila.
+      if (res.descartados > 0) {
+        toast.info(
+          `${res.descartados} arquivo(s) descartado(s): chave de acesso já importada e tratada (régua A01) — nada foi sobrescrito.`,
+        )
+      }
+      if (res.importados === 0 && res.descartados > 0) {
+        toast.success(
+          `Nenhum arquivo novo: todas as ${res.descartados} nota(s) já constam na escrituração (A01). Documentos existentes preservados.`,
+        )
+        return
+      }
       toast.success(
-        `Processamento finalizado: ${res.importados} importado(s), ${res.duplicados} em duplicidade (A01), ${res.pendentesDePara} aguardando de-para (A02).`,
+        `Processamento finalizado: ${res.importados} importado(s), ${res.descartados} já existente(s) descartado(s) (A01), ${res.pendentesDePara} aguardando de-para (A02).`,
       )
     })
   }
@@ -146,8 +159,16 @@ export default function ImportarPage() {
     }
     const res = importarXmlsEmLote([textoXmlColado], { inicio: periodoInicio, fim: periodoFim })
     setTextoXmlColado('')
+    if (res.importados === 0 && res.descartados > 0) {
+      toast.info(
+        'Esta NF-e já consta na escrituração (chave de acesso em duplicidade — régua A01). O documento já tratado foi preservado.',
+      )
+      return
+    }
     toast.success(
-      `XML importado! Processados: ${res.importados}, Aguardando De-Para: ${res.pendentesDePara}, Duplicados: ${res.duplicados}`,
+      `XML importado! Processados: ${res.importados}, Aguardando De-Para: ${res.pendentesDePara}${
+        res.descartados > 0 ? `, Duplicados descartados: ${res.descartados}` : ''
+      }`,
     )
   }
 

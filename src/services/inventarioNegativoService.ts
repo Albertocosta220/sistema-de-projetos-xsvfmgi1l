@@ -1,6 +1,11 @@
 // Inventário Negativo: separa o inventário da competência em saldo positivo e
 // saldo negativo, com o extrato nota a nota que compõe cada saldo.
 // Fonte: Kardex cronológico (replay CMP) — o mesmo que o Bloco H usa.
+//
+// Regra de exibição (pedido do usuário): para cada produto são SOMADAS todas as
+// entradas (qtd e valor) e todas as saídas (qtd e valor) do período, e o saldo
+// final é entradas − saídas — podendo ficar negativo. O replay do Kardex (CMP,
+// bloqueios A03, estornos A05) NÃO muda: a agregação é só para esta tela.
 
 import type { ItemContagemInventario, MovimentoKardex } from '@/types/sigef'
 
@@ -8,8 +13,17 @@ export interface LinhaSaldoInventario {
   codigoInventario: string
   descricao: string
   unidade: string
+  /** Total SOMADO de todas as entradas do produto até o fim da competência. */
+  totalQuantidadeEntradas: number
+  totalValorEntradas: number
+  /** Total SOMADO de todas as saídas (inclui saídas bloqueadas por saldo). */
+  totalQuantidadeSaidas: number
+  totalValorSaidas: number
+  /** Saldo final = total de entradas − total de saídas (pode ser negativo). */
   saldoQuantidade: number
+  /** Custo médio do último movimento do Kardex (o replay CMP não muda). */
   custoMedio: number
+  /** Saldo em valor = total de entradas − total de saídas (pode ser negativo). */
   saldoValor: number
   /** Movimentos do Kardex até o fim da competência, em ordem cronológica. */
   movimentos: MovimentoKardex[]
@@ -28,6 +42,11 @@ export interface ResumoInventarioNegativo {
   quantidadeZerados: number
   /** Soma líquida de todos os saldos (positivos + negativos). */
   valorTotalLiquido: number
+  /** Totais SOMADOS de entradas e saídas de TODOS os produtos da competência. */
+  totalQuantidadeEntradas: number
+  totalValorEntradas: number
+  totalQuantidadeSaidas: number
+  totalValorSaidas: number
 }
 
 /** Fim (último instante) da competência YYYY-MM, em horário local. */
@@ -45,8 +64,9 @@ function grupoVazio(): GrupoSaldoInventario {
 
 /**
  * Monta o resumo a partir dos itens do inventário da competência (já filtrados
- * pelas regras de desqualificação e pelo fechamento) e do Kardex. O saldo de
- * cada produto é o do último movimento até o fim da competência ativa.
+ * pelas regras de desqualificação e pelo fechamento) e do Kardex. Cada produto
+ * acumula TODAS as entradas e TODAS as saídas até o fim da competência ativa;
+ * o saldo é a diferença entre elas (podendo ser negativo).
  */
 export function montarInventarioNegativo(
   itens: ItemContagemInventario[],
@@ -68,14 +88,37 @@ export function montarInventarioNegativo(
   const negativo = grupoVazio()
   let quantidadeZerados = 0
   let valorTotalLiquido = 0
+  let totalQuantidadeEntradas = 0
+  let totalValorEntradas = 0
+  let totalQuantidadeSaidas = 0
+  let totalValorSaidas = 0
 
   for (const item of itens) {
     const movimentos = porProduto.get(item.codigoInventario) ?? []
+
+    // Soma TODAS as entradas e TODAS as saídas do produto (cada movimento uma
+    // única vez — inclusive saídas bloqueadas por saldo negativo, que também
+    // foram tentativas de saída escrituradas no extrato).
+    let qtdEntradas = 0
+    let valEntradas = 0
+    let qtdSaidas = 0
+    let valSaidas = 0
+    for (const mov of movimentos) {
+      qtdEntradas += mov.quantidadeEntrada || 0
+      valEntradas += mov.valorTotalEntrada || 0
+      qtdSaidas += mov.quantidadeSaida || 0
+      valSaidas += mov.valorTotalSaida || 0
+    }
+
+    const saldoQuantidade = qtdEntradas - qtdSaidas
+    const saldoValor = valEntradas - valSaidas
     const ultimo = movimentos[movimentos.length - 1]
-    const saldoQuantidade = ultimo ? ultimo.saldoQuantidade : 0
-    const saldoValor = ultimo ? ultimo.saldoValorTotal : 0
     const custoMedio = ultimo ? ultimo.custoMedioUnitario : 0
 
+    totalQuantidadeEntradas += qtdEntradas
+    totalValorEntradas += valEntradas
+    totalQuantidadeSaidas += qtdSaidas
+    totalValorSaidas += valSaidas
     valorTotalLiquido += saldoValor
 
     if (Math.abs(saldoQuantidade) < TOLERANCIA) {
@@ -87,6 +130,10 @@ export function montarInventarioNegativo(
       codigoInventario: item.codigoInventario,
       descricao: item.descricao,
       unidade: item.unidade,
+      totalQuantidadeEntradas: qtdEntradas,
+      totalValorEntradas: valEntradas,
+      totalQuantidadeSaidas: qtdSaidas,
+      totalValorSaidas: valSaidas,
       saldoQuantidade,
       custoMedio,
       saldoValor,
@@ -103,5 +150,14 @@ export function montarInventarioNegativo(
   positivo.itens.sort((a, b) => b.saldoValor - a.saldoValor)
   negativo.itens.sort((a, b) => a.saldoValor - b.saldoValor)
 
-  return { positivo, negativo, quantidadeZerados, valorTotalLiquido }
+  return {
+    positivo,
+    negativo,
+    quantidadeZerados,
+    valorTotalLiquido,
+    totalQuantidadeEntradas,
+    totalValorEntradas,
+    totalQuantidadeSaidas,
+    totalValorSaidas,
+  }
 }
