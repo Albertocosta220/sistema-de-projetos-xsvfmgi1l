@@ -75,33 +75,13 @@ export function reprocessarKardexCronologico(
     (a, b) => new Date(a.dataEmissao).getTime() - new Date(b.dataEmissao).getTime(),
   )
 
-  // 1. Verificar duplicidades de Chave de Acesso (Regra A01)
-  const chavesVistas = new Set<string>()
-  const docsComStatus = docsOrdenados.map((doc) => {
-    if (doc.status === 'CANCELADO') return doc
-    if (chavesVistas.has(doc.chaveAcesso)) {
-      ocorrencias.push({
-        id: `oco-a01-${doc.id}`,
-        regraCodigo: 'A01',
-        regraNome: 'Chave de Acesso em Duplicidade',
-        severidade: 'ERRO',
-        descricao: `A NF-e nº ${doc.numero} (série ${doc.serie}) possui chave ${doc.chaveAcesso} já registrada anteriormente.`,
-        baseLegal: REGUAS_AUDITORIA.find((r) => r.codigo === 'A01')?.baseLegal || '',
-        documentoRef: doc.numero,
-        chaveAcessoRef: doc.chaveAcesso,
-        dataIdentificacao: new Date().toISOString(),
-        resolvido: false,
-        podeReprocessar: true,
-      })
-      return {
-        ...doc,
-        status: 'DUPLICIDADE' as const,
-        motivoErro: 'Chave de acesso em duplicidade (Regra A01)',
-      }
-    }
-    chavesVistas.add(doc.chaveAcesso)
-    return doc
-  })
+  // 1. Duplicidade (Regra A01) — agora tratada NA ENTRADA (importarXmlsEmLote
+  //    descarta o XML repetido) e pela limpeza one-shot de stores antigas
+  //    (limpezaDuplicadosService). O motor NÃO marca mais documento com o
+  //    status legado DUPLICIDADE nem gera a ocorrência vermelha: cada chave
+  //    fica com UMA linha (a do documento tratado, 1º da fila cronológica) e
+  //    a repetição segue apenas como registro A01 na auditoria, se existir.
+  const docsComStatus = docsOrdenados
 
   // 2. Resolver de-para e validar itens
   const docsAposDePara = docsComStatus.map((doc) => {

@@ -11,13 +11,14 @@ import {
 } from '@/services/inventarioNegativoService'
 
 export default function InventarioNegativoPage() {
-  const { gerarContagemCompetencia, kardex, produtos, competenciaAtiva } = useSigef()
+  const { gerarItensInventarioNegativo, kardex, produtos, competenciaAtiva } = useSigef()
 
-  // Lista de produtos da competência ativa: mesma regra do Inventário (Bloco H),
-  // ou seja, itens com "não vincular" / desqualificados ficam de fora.
-  // O saldo é recalculado no corte do fim da competência ativa.
+  // Lista da competência ativa: a contagem contável + TODO código movimentado
+  // (produto sem catálogo ou vínculo desqualificado/"não vincular" também
+  // aparece — pedido do usuário). Agrupamento por código de inventário soma os
+  // vínculos duplicados (ex.: VB0076) numa única linha.
   const resumo = useMemo(() => {
-    const itens = gerarContagemCompetencia(competenciaAtiva)
+    const itens = gerarItensInventarioNegativo(competenciaAtiva)
     return montarInventarioNegativo(itens, kardex, competenciaAtiva)
     // produtos.length: itens importados por planilha entram com saldo zero
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -216,8 +217,18 @@ function LinhaProduto({
           </Button>
         </td>
         <td className="py-2 pr-3 font-mono font-bold">{linha.codigoInventario}</td>
-        <td className="py-2 pr-3">{linha.descricao}</td>
-        <td className="py-2 pr-3">{linha.unidade}</td>
+        <td className="py-2 pr-3">
+          {linha.descricao}
+          {linha.descricoesMescladas && linha.descricoesMescladas.length > 0 ? (
+            <span
+              className="block text-[11px] text-[var(--sig-muted)]"
+              title={`Mesclado: ${linha.descricoesMescladas.join(' · ')}`}
+            >
+              + {linha.descricoesMescladas.length} vínculo(s) do mesmo código
+            </span>
+          ) : null}
+        </td>
+        <td className="py-2 pr-3">{linha.unidade || '—'}</td>
         <td className="py-2 pr-3 text-right font-mono text-emerald-700">
           {num(linha.totalQuantidadeEntradas)}
         </td>

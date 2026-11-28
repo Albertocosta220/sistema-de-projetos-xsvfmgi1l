@@ -6,8 +6,19 @@
 // entradas (qtd e valor) e todas as saídas (qtd e valor) do período, e o saldo
 // final é entradas − saídas — podendo ficar negativo. O replay do Kardex (CMP,
 // bloqueios A03, estornos A05) NÃO muda: a agregação é só para esta tela.
+//
+// Agrupamento é pelo CÓDIGO DE INVENTÁRIO: dois vínculos de de-para (ou dois
+// cadastros) que apontam para o mesmo código somam as movimentações numa única
+// linha (caso VB0076 "Sucata de Metal" + "SUCATA DE LATÃO").
 
-import type { ItemContagemInventario, MovimentoKardex } from '@/types/sigef'
+import type {
+  DeParaVigente,
+  DocumentoFiscal,
+  ItemContagemInventario,
+  MovimentoKardex,
+  Produto,
+} from '@/types/sigef'
+import { buscarDePara } from './kardexEngine'
 
 export interface LinhaSaldoInventario {
   codigoInventario: string
@@ -27,6 +38,8 @@ export interface LinhaSaldoInventario {
   saldoValor: number
   /** Movimentos do Kardex até o fim da competência, em ordem cronológica. */
   movimentos: MovimentoKardex[]
+  /** Descrições distintas dos itens mesclados neste código (quando > 1). */
+  descricoesMescladas?: string[]
 }
 
 export interface GrupoSaldoInventario {
@@ -63,10 +76,45 @@ function grupoVazio(): GrupoSaldoInventario {
 }
 
 /**
+ * Mescla itens que compartilham o mesmo código de inventário: as movimentações
+ * do Kardex são por código, então dois cadastros/vínculos do mesmo código
+ * somariam os MESMOS movimentos duas vezes (caso VB0076 duplicado). A linha
+ * única carrega a primeira descrição e lista as outras em descricoesMescladas.
+ */
+function mesclarPorCodigo(itens: ItemContagemInventario[]): ItemContagemInventario[] {
+  const ordem: string[] = []
+  const porCodigo = new Map<string, ItemContagemInventario>()
+
+  for (const item of itens) {
+    const existente = porCodigo.get(item.codigoInventario)
+    if (!existente) {
+      ordem.push(item.codigoInventario)
+      porCodigo.set(item.codigoInventario, { ...item })
+      continue
+    }
+    // Mescla: mesma movimentação — mantém a 1ª descrição, lista as demais.
+    const descricoes = new Set([
+      existente.descricao,
+      item.descricao,
+      ...((existente as ItemContagemInventario & { descricoesMescladas?: string[] })
+        .descricoesMescladas ?? []),
+    ])
+    descricoes.delete(existente.descricao)
+    porCodigo.set(item.codigoInventario, {
+      ...existente,
+      descricao: existente.descricao || item.descricao,
+      unidade: existente.unidade || item.unidade,
+      descricoesMescladas: descricoes.size > 0 ? Array.from(descricoes) : undefined,
+    } as ItemContagemInventario)
+  }
+  return ordem.map((cod) => porCodigo.get(cod)!)
+}
+
+/**
  * Monta o resumo a partir dos itens do inventário da competência (já filtrados
- * pelas regras de desqualificação e pelo fechamento) e do Kardex. Cada produto
- * acumula TODAS as entradas e TODAS as saídas até o fim da competência ativa;
- * o saldo é a diferença entre elas (podendo ser negativo).
+ * pelas regras de desqualificação e pelo fechamento) e do Kardex. Cada código
+ * de inventário acumula TODAS as entradas e TODAS as saídas até o fim da
+ * competência ativa; o saldo é a diferença entre elas (podendo ser negativo).
  */
 export function montarInventarioNegativo(
   itens: ItemContagemInventario[],
@@ -93,8 +141,11 @@ export function montarInventarioNegativo(
   let totalQuantidadeSaidas = 0
   let totalValorSaidas = 0
 
-  for (const item of itens) {
+  for (const item of mesclarPorCodigo(itens)) {
     const movimentos = porProduto.get(item.codigoInventario) ?? []
+    const descricoesMescladas = (
+      item as ItemContagemInventario & { descricoesMescladas?: string[] }
+    ).descricoesMescladas
 
     // Soma TODAS as entradas e TODAS as saídas do produto (cada movimento uma
     // única vez — inclusive saídas bloqueadas por saldo negativo, que também
@@ -121,6 +172,13 @@ export function montarInventarioNegativo(
     totalValorSaidas += valSaidas
     valorTotalLiquido += saldoValor
 
+    // Código SEM movimentação nenhuma (produto do catálogo parado): fora das
+    // listas — só produtos movimentados aparecem (pedido do usuário).
+    if (movimentos.length === 0) {
+      quantidadeZerados++
+      continue
+    }
+
     if (Math.abs(saldoQuantidade) < TOLERANCIA) {
       quantidadeZerados++
       continue
@@ -138,6 +196,8 @@ export function montarInventarioNegativo(
       custoMedio,
       saldoValor,
       movimentos,
+      descricoesMescladas:
+        descricoesMescladas && descricoesMescladas.length > 0 ? descricoesMescladas : undefined,
     }
 
     const grupo = saldoQuantidade > 0 ? positivo : negativo

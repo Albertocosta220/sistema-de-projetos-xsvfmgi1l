@@ -224,18 +224,23 @@ export default function ImportarPage() {
     }
   }
 
-  // Filtragem
-  const docsFiltrados = documentos.filter((d) => {
-    const matchesBusca =
-      d.numero.toLowerCase().includes(busca.toLowerCase()) ||
-      d.chaveAcesso.toLowerCase().includes(busca.toLowerCase()) ||
-      d.nomeEmitente.toLowerCase().includes(busca.toLowerCase()) ||
-      d.nomeDestinatario.toLowerCase().includes(busca.toLowerCase())
+  // Filtragem. A fila NÃO exibe mais linha "DUPLICIDADE (A01)": a duplicata é
+  // descartada na entrada (régua A01 na auditoria) e a limpeza one-shot já
+  // removeu as gravadas — cada chave fica com uma única linha, do documento
+  // tratado. Por segurança, qualquer resquício de status legado é omitido.
+  const docsFiltrados = documentos
+    .filter((d) => d.status !== 'DUPLICIDADE')
+    .filter((d) => {
+      const matchesBusca =
+        d.numero.toLowerCase().includes(busca.toLowerCase()) ||
+        d.chaveAcesso.toLowerCase().includes(busca.toLowerCase()) ||
+        d.nomeEmitente.toLowerCase().includes(busca.toLowerCase()) ||
+        d.nomeDestinatario.toLowerCase().includes(busca.toLowerCase())
 
-    const matchesStatus = filtroStatus === 'TODOS' ? true : d.status === filtroStatus
+      const matchesStatus = filtroStatus === 'TODOS' ? true : d.status === filtroStatus
 
-    return matchesBusca && matchesStatus
-  })
+      return matchesBusca && matchesStatus
+    })
 
   const getStatusBadge = (status: DocumentoFiscal['status']) => {
     switch (status) {
@@ -254,12 +259,9 @@ export default function ImportarPage() {
           </Badge>
         )
       case 'DUPLICIDADE':
-        return (
-          <Badge variant="destructive" className="flex items-center gap-1">
-            <Copy className="size-3" />
-            DUPLICIDADE (A01)
-          </Badge>
-        )
+        // Legado: duplicatas são descartadas e nunca mais exibidas na fila
+        // (régua A01 na auditoria). Mantido só para não quebrar o switch.
+        return null
       case 'CANCELADO':
         return (
           <Badge
@@ -462,10 +464,11 @@ export default function ImportarPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <CardTitle className="text-sm font-bold">
-                Fila de Processamento Cronológico ({documentos.length} Documentos)
+                Fila de Processamento Cronológico (
+                {documentos.filter((d) => d.status !== 'DUPLICIDADE').length} Documentos)
               </CardTitle>
               <CardDescription className="text-[11px]">
-                Status: PENDENTE, PROCESSADO, AGUARDANDO_DE_PARA, DUPLICIDADE, CANCELADO ou ERRO
+                Status: PENDENTE, PROCESSADO, AGUARDANDO_DE_PARA, CANCELADO ou ERRO
               </CardDescription>
             </div>
 
@@ -490,7 +493,7 @@ export default function ImportarPage() {
                 <option value="TODOS">Todos os Status</option>
                 <option value="PROCESSADO">Processados</option>
                 <option value="AGUARDANDO_DE_PARA">Aguardando De-Para</option>
-                <option value="DUPLICIDADE">Duplicidade</option>
+
                 <option value="CANCELADO">Cancelados</option>
               </select>
             </div>

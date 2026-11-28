@@ -43,6 +43,7 @@ import {
   limparDadosSeedsOneShot,
   normalizarStore,
 } from '@/services/limpezaSeeds'
+import { limparDuplicadosOneShot } from '@/services/limpezaDuplicados'
 import { calcularItensInventario, reprocessarKardexCronologico } from '@/services/kardexEngine'
 import { parseNFeXml } from '@/services/nfeXmlParser'
 import { consultarDFeSimulado } from '@/services/sefazDfeSimulator'
@@ -225,11 +226,13 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Ao trocar de empresa, carrega a store correspondente
+  // Ao trocar de empresa, carrega a store correspondente. Na carga, roda a
+  // limpeza one-shot de duplicados gravados (v0.0.40): mantém o primeiro
+  // documento (tratado) de cada chave de acesso e resolve as A01 obsoletas.
   useEffect(() => {
     if (!empresaAtiva) return
     const dados = carregarDadosEmpresa(empresaAtiva)
-    setStore(dados)
+    setStore(empresaAtiva.id ? limparDuplicadosOneShot(dados, empresaAtiva.id) : dados)
   }, [empresaAtiva.id])
 
   // Salva store sempre que atualizar
@@ -959,6 +962,31 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return calcularItensInventario(produtosContaveis, store.kardex)
   }
 
+  /**
+   * Itens do INVENTÁRIO NEGATIVO: a contagem contável + TODO código com
+   * movimentação no Kardex que ficou fora dela (produto sem catálogo, vínculo
+   * desqualificado/"não vincular"). O usuário pediu: "tem que aparecer os
+   * estoques de todos os produtos que foram movimentados no inventário" —
+   * nenhum código movimentado pode sumir das listas. O Bloco H (contagem
+   * física/fechamento) continua usando só gerarContagemCompetencia.
+   */
+  const gerarItensInventarioNegativo = (competencia: string): ItemContagemInventario[] => {
+    const itens = gerarContagemCompetencia(competencia)
+    const codigosNaLista = new Set(itens.map((i) => i.codigoInventario))
+    const codigosExtras = new Set(
+      store.kardex
+        .filter((k) => !codigosNaLista.has(k.codigoInventario))
+        .map((k) => k.codigoInventario),
+    )
+    if (codigosExtras.size === 0) return itens
+    const produtosExtras = Array.from(codigosExtras).map((cod) => ({
+      codigoInventario: cod,
+      descricao: cod,
+      unidade: '',
+    }))
+    return [...itens, ...calcularItensInventario(produtosExtras, store.kardex)]
+  }
+
   const salvarAjusteContagem = (
     _competencia: string,
     codigoInventario: string,
@@ -1257,6 +1285,7 @@ export const SigefProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         cancelarNFe,
         reprocessarNotas,
         gerarContagemCompetencia,
+        gerarItensInventarioNegativo,
         salvarAjusteContagem,
         fecharCompetencia,
         reprocessarOcorrencia,
